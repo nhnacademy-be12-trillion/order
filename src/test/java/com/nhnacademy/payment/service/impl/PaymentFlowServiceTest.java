@@ -79,7 +79,7 @@ class PaymentFlowServiceTest {
 
         given(paymentService.savePayment(response,order)).willReturn(expectResponse);
 
-        PaymentResponse result = paymentFlowService.ConfirmPayment(request);
+        PaymentResponse result = paymentFlowService.confirmPayment(request);
 
         assertEquals("DONE",result.status());
 
@@ -94,7 +94,7 @@ class PaymentFlowServiceTest {
     {
         given(orderRepository.findByOrderNumber("ORD_test")).willReturn(Optional.empty());
 
-        assertThrows(OrderNotFoundException.class,()->paymentFlowService.ConfirmPayment(request));
+        assertThrows(OrderNotFoundException.class,()->paymentFlowService.confirmPayment(request));
 
         verify(tossPaymentClient, never()).confirm("test_paymentKey","ORD_test",50000);
     }
@@ -108,7 +108,7 @@ class PaymentFlowServiceTest {
         given(orderRepository.findByOrderNumber(request.orderNumber())).willReturn(Optional.of(order));
 
         assertThrows(PaymentAlreadyApprovedException.class,
-                () -> paymentFlowService.ConfirmPayment(request));
+                () -> paymentFlowService.confirmPayment(request));
 
         verify(tossPaymentClient,never()).confirm(any(),any(),any());
     }
@@ -122,7 +122,7 @@ class PaymentFlowServiceTest {
                 new RuntimeException("Toss API Network Error")
         );
 
-        assertThatThrownBy(() -> paymentFlowService.ConfirmPayment(request))
+        assertThatThrownBy(() -> paymentFlowService.confirmPayment(request))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Toss API Network Error");
 
@@ -140,7 +140,7 @@ class PaymentFlowServiceTest {
         given(paymentService.savePayment(any(),any())).willThrow(
                 new RuntimeException("Toss API Network Error"));
 
-        assertThatThrownBy(() -> paymentFlowService.ConfirmPayment(request))
+        assertThatThrownBy(() -> paymentFlowService.confirmPayment(request))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("결제 승인 실패");
 

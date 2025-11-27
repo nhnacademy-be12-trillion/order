@@ -5,6 +5,8 @@ import com.nhnacademy.payment.domain.Payment;
 import com.nhnacademy.payment.dto.reqeust.PaymentRequestDto;
 import com.nhnacademy.payment.dto.response.PaymentResponse;
 import com.nhnacademy.payment.dto.response.TossPaymentResponseDto;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface PaymentService {
     PaymentResponse savePayment(TossPaymentResponseDto response, Order order);
@@ -14,5 +16,7 @@ public interface PaymentService {
     Payment getPaymentByOrderNumber(String orderNumber);
 
     PaymentResponse getPaymentById(Long paymentId);
+
+    Page<PaymentResponse> getAllPayments(Pageable pageable);
 
 }

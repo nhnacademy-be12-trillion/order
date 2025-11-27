@@ -14,6 +14,8 @@ import com.nhnacademy.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
@@ -75,7 +77,7 @@ public class PaymentServiceImpl implements PaymentService {
         return payment;
     }
 
-    //특정 결제 내역 조회 -> 사용자에게 보여줄 페이지
+    //특정 결제 내역 조회 -> 사용자에게 보여줄 페이지(단건 조회)
     @Override
     @Transactional(readOnly = true)
     public PaymentResponse getPaymentById(Long paymentId) {
@@ -84,5 +86,13 @@ public class PaymentServiceImpl implements PaymentService {
         );
 
         return PaymentResponse.from(payment);
+    }
+
+
+    //결제 내역 전체 조회,
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PaymentResponse> getAllPayments(Pageable pageable) {
+        return paymentRepository.findAll(pageable).map(PaymentResponse::from);
     }
 }

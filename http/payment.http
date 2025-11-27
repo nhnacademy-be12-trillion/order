@@ -1,3 +1,6 @@
 
-### 결제 승인 상태 조회.
+### 결제 단건 조회
 GET localhost:10411/payments/1
+
+### 결제 전체 조회(pageable)
+GET http://localhost:10411/payments
