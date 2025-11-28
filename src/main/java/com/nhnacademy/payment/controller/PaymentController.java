@@ -7,6 +7,8 @@ import com.nhnacademy.payment.dto.response.PaymentResponse;
 import com.nhnacademy.payment.service.PaymentService;
 import com.nhnacademy.payment.service.impl.PaymentFlowService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,14 +22,10 @@ public class PaymentController {
     private final PaymentFlowService paymentFlowService;
 
 
-    @GetMapping("/success")
-    public ResponseEntity<?> createPaymentSuccess(@RequestParam String paymentKey,
-                                                  @RequestParam("orderId") String orderId,
-                                                  @RequestParam("amount")  Integer amount) {
+    @PostMapping("/success")
+    public ResponseEntity<?> createPaymentSuccess(@RequestBody PaymentRequestDto request) {
 
-        PaymentRequestDto requestDto = new PaymentRequestDto(paymentKey, orderId, amount);
-
-        PaymentResponse payment = paymentFlowService.ConfirmPayment(requestDto);
+        PaymentResponse payment = paymentFlowService.confirmPayment(request);
 
         return ResponseEntity.ok(payment);
     }
@@ -45,6 +43,11 @@ public class PaymentController {
         paymentFlowService.cancelPayment(orderNumber, cancelReason);
 
         return ResponseEntity.ok("결제 취소 완료");
+    }
+
+    @GetMapping
+    public ResponseEntity<Page<PaymentResponse>> getPayments(Pageable pageable) {
+        return ResponseEntity.ok(paymentService.getAllPayments(pageable));
     }
 
  }

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="https://static.toss.im/icons/png/4x/icon-toss-logo.png" />
+    <style>
+        body { font-family: sans-serif; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .box_section { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 600px; text-align: center; }
+        .p-grid { display: flex; justify-content: space-between; margin-top: 15px; font-size: 16px; }
+        .text--left { text-align: left; color: #666; font-weight: bold; }
+        .text--right { text-align: right; color: #333; }
+        h2 { margin-bottom: 30px; color: #333; }
+        .button { background-color: #3182f6; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 30px; text-decoration: none; display: inline-block; }
+        pre { background: #f1f3f5; padding: 15px; border-radius: 8px; text-align: left; overflow-x: auto; margin-top: 20px; font-size: 14px; }
+        #loading { margin-top: 20px; color: #666; font-weight: bold; }
+        .error-msg { color: #dc3545; font-weight: bold; margin-top: 20px; }
+    </style>
+    <title>결제 성공 - NHN Books</title>
+</head>
+
+<body>
+<div class="box_section">
+    <img width="100px" src="https://static.toss.im/illusts/check-blue-spot-ending-frame.png" alt="성공 이미지" />
+    <h2>결제 요청 완료</h2>
+
+    <div id="loading">최종 승인 처리 중입니다...</div>
+
+    <div id="error-view" class="error-msg" style="display: none;"></div>
+
+    <div id="result-view" style="display: none;">
+        <div class="p-grid">
+            <div class="text--left">결제금액</div>
+            <div class="text--right" id="amount"></div>
+        </div>
+        <div class="p-grid">
+            <div class="text--left">주문번호</div>
+            <div class="text--right" id="orderId"></div>
+        </div>
+        <div class="p-grid">
+            <div class="text--left">결제 Key</div>
+            <div class="text--right" id="paymentKey"></div>
+        </div>
+        <div class="p-grid">
+            <div class="text--left">승인일시</div>
+            <div class="text--right" id="approvedAt"></div>
+        </div>
+
+        <a href="/" class="button">홈으로 돌아가기</a>
+    </div>
+</div>
+
+<div class="box_section" style="margin-top: 20px; text-align: left;">
+    <b>서버 응답 데이터 (Debug):</b>
+    <div id="response"></div>
+</div>
+
+<script>
+    // 1. URL 쿼리 파라미터 가져오기
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentKey = urlParams.get("paymentKey");
+    const orderId = urlParams.get("orderId");
+    const amount = urlParams.get("amount");
+
+    // 2. 백엔드 결제 승인 요청 함수
+    async function confirmPayment() {
+        if (!paymentKey || !orderId || !amount) {
+            showError("결제 정보가 부족합니다.");
+            return;
+        }
+
+        try {
+            // [핵심 수정] 백엔드 컨트롤러 호출 (@PostMapping "/payments/success")
+            const response = await fetch("/payments/success", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                // [핵심 수정] DTO 필드명(orderNumber)에 맞춰서 JSON 생성
+                body: JSON.stringify({
+                    paymentKey: paymentKey,
+                    orderNumber: orderId, // URL의 orderId 값을 DTO의 orderNumber 필드에 매핑
+                    amount: Number(amount)
+                })
+            });
+
+            const json = await response.json();
+
+            if (!response.ok) {
+                throw { message: json.message || "결제 승인 실패", code: response.status, json: json };
+            }
+
+            return json; // 성공 데이터 반환
+
+        } catch (err) {
+            console.error(err);
+            showError(`결제 승인 실패: ${err.message}`);
+            document.getElementById("response").innerHTML = `<pre style="color:red">${JSON.stringify(err.json || err, null, 4)}</pre>`;
+        }
+    }
+
+    function showError(msg) {
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("error-view").style.display = "block";
+        document.getElementById("error-view").textContent = msg;
+    }
+
+    // 3. 실행 및 UI 업데이트
+    confirmPayment().then((data) => {
+        if (data) {
+            document.getElementById("loading").style.display = "none";
+            document.getElementById("result-view").style.display = "block";
+
+            // 화면 데이터 바인딩 (DTO 필드명 기준)
+            document.getElementById("orderId").textContent = data.orderNumber;
+            document.getElementById("amount").textContent = Number(data.totalAmount).toLocaleString() + "원";
+            document.getElementById("paymentKey").textContent = paymentKey;
+            document.getElementById("approvedAt").textContent = new Date(data.approvedAt).toLocaleString();
+
+            document.getElementById("response").innerHTML = `<pre>${JSON.stringify(data, null, 4)}</pre>`;
+        }
+    });
+</script>
+</body>
+</html>

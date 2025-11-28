@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <title>주문서 - NHN Books</title>
+    <script src="https://js.tosspayments.com/v1/payment"></script>
+
+    <style>
+        body { font-family: sans-serif; background-color: #f9f9f9; display: flex; justify-content: center; padding-top: 50px; }
+        .wrapper { width: 600px; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        h1 { font-size: 24px; margin-bottom: 30px; color: #333; }
+
+        /* 입력 폼 스타일 */
+        .input-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #555; }
+        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+
+        /* 결제 수단 버튼 스타일 */
+        .payment-methods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 30px; }
+        .method-btn {
+            padding: 15px; border: 1px solid #ddd; background: white; border-radius: 8px;
+            cursor: pointer; font-size: 14px; font-weight: bold; color: #555; transition: all 0.2s;
+        }
+        .method-btn:hover { background-color: #f5f5f5; }
+        .method-btn.selected { border-color: #3182f6; background-color: #e8f3ff; color: #3182f6; }
+
+        /* 결제하기 버튼 */
+        .submit-btn {
+            width: 100%; padding: 16px; background-color: #3182f6; color: white;
+            border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer;
+        }
+        .submit-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+
+<body>
+<div class="wrapper">
+    <h1>주문 / 결제</h1>
+
+    <div class="input-group">
+        <label>주문자명</label>
+        <input type="text" id="ordererName" value="홍길동" />
+    </div>
+    <div class="input-group">
+        <label>연락처</label>
+        <input type="text" id="ordererContact" value="01012345678" placeholder="- 없이 숫자만 입력" />
+    </div>
+
+    <label>결제 수단 선택</label>
+    <div class="payment-methods">
+        <button class="method-btn selected" onclick="selectMethod('카드')">카드</button>
+        <button class="method-btn" onclick="selectMethod('계좌이체')">계좌이체</button>
+        <button class="method-btn" onclick="selectMethod('가상계좌')">가상계좌</button>
+        <button class="method-btn" onclick="selectMethod('휴대폰')">휴대폰</button>
+        <button class="method-btn" onclick="selectMethod('문화상품권')">문화상품권</button>
+        <button class="method-btn" onclick="selectMethod('해외간편결제')">해외결제</button>
+    </div>
+
+    <button class="submit-btn" id="payment-button" onclick="processPayment()">
+        결제하기
+    </button>
+</div>
+
+<script>
+    // 1. 일반 결제용 클라이언트 키 설정
+    const clientKey = "test_ck_vZnjEJeQVxnQWGOa5XOq8PmOoBN0";
+    const tossPayments = TossPayments(clientKey);
+
+    // 현재 선택된 결제 수단 (기본값: 카드)
+    let selectedMethod = '카드';
+
+    // 결제 수단 선택 로직 (UI 변경)
+    function selectMethod(method) {
+        selectedMethod = method;
+
+        // 모든 버튼 스타일 초기화
+        const buttons = document.querySelectorAll('.method-btn');
+        buttons.forEach(btn => {
+            btn.classList.remove('selected');
+            if (btn.innerText === method || (method === '해외간편결제' && btn.innerText === '해외결제')) {
+                btn.classList.add('selected');
+            }
+        });
+    }
+
+    // 결제 진행 로직
+    async function processPayment() {
+        const button = document.getElementById("payment-button");
+        button.disabled = true;
+        button.innerText = "처리 중...";
+
+        try {
+            // [Step A] 백엔드에 주문 생성 요청 (POST /api/orders)
+            const response = await fetch('/api/orders', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-USER-ID': '1',       // 필요한 헤더
+                    'X-USER-ROLE': 'MEMBER'
+                },
+                body: JSON.stringify({
+                    ordererName: document.getElementById("ordererName").value,
+                    ordererContact: document.getElementById("ordererContact").value,
+                    // 테스트용 상품 데이터
+                    orderItems: [
+                        { bookId: 1, quantity: 2 },
+                        { bookId: 2, quantity: 1 }
+                    ]
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`주문 생성 실패: ${response.status}`);
+            }
+
+            const orderData = await response.json();
+            console.log("주문 생성 성공:", orderData);
+
+            // [Step B] Toss 결제창 호출
+            // requestPayment(결제수단, 결제정보)
+            await tossPayments.requestPayment(selectedMethod, {
+                amount: orderData.totalPrice,   // 서버에서 계산된 금액
+                orderId: orderData.orderNumber, // 서버에서 생성된 주문번호
+                orderName: "토스 티셔츠 외 1건",
+                customerName: orderData.ordererInfo.ordererName,
+                customerEmail: "customer@example.com",
+                customerMobilePhone: orderData.ordererInfo.ordererContact.replaceAll("-", ""),
+
+                // 결제 성공/실패 시 이동할 페이지 (success.html, fail.html)
+                successUrl: window.location.origin + "/success.html",
+                failUrl: window.location.origin + "/fail.html",
+            });
+
+        } catch (error) {
+            console.error("Error:", error);
+            alert("결제 진행 중 오류가 발생했습니다.\n" + error.message);
+            button.disabled = false;
+            button.innerText = "결제하기";
+        }
+    }
+</script>
+</body>
+</html>

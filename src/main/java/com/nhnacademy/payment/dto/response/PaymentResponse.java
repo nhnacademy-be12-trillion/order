@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 @Builder
 public record PaymentResponse (
         Long paymentId,
+        String paymentKey,
         String orderNumber,
         Integer totalAmount,
         String status,
@@ -18,6 +19,7 @@ public record PaymentResponse (
     public static PaymentResponse from(Payment payment) {
         return PaymentResponse.builder()
                 .paymentId(payment.getPaymentId())
+                .paymentKey(payment.getPaymentKey())
                 .orderNumber(payment.getOrder().getOrderNumber())
                 .totalAmount(payment.getOrder().getOrderDetails().totalPrice())
                 .status(payment.getPaymentStatus().toString())

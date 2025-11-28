@@ -1,58 +1,95 @@
-#name: Build
-#
-#on:
-#  push:
-#    branches:
-#      - main
-#
-#
-#jobs:
-#  build:
-#    name: Build and analyze
-#    runs-on: ubuntu-latest
-#
-#    steps:
-#      - uses: actions/checkout@v4
-#        with:
-#          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-#      - name: Set up JDK 21
-#        uses: actions/setup-java@v4
-#        with:
-#          java-version: 21
-#          distribution: 'temurin' # Alternative distribution options are available.
-#      - name: Cache SonarQube packages
-#        uses: actions/cache@v4
-#        with:
-#          path: ~/.sonar/cache
-#          key: ${{ runner.os }}-sonar
-#          restore-keys: ${{ runner.os }}-sonar
-#      - name: Cache Maven packages
-#        uses: actions/cache@v4
-#        with:
-#          path: ~/.m2
-#          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-#          restore-keys: ${{ runner.os }}-m2
-#      - name: Build and analyze
-#        env:
-#          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-#          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-#        run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=nhnacademy-be12-trillion-order -Dsonar.projectName='nhnacademy-be12-trillion-order'
-#      - name : upload file
-#        uses: appleboy/scp-action@master
-#        with:
-#          host: ${{ secrets.SSH_IP }}
-#          username: ${{ secrets.SSH_ID }}
-#          password: ${{ secrets.SSH_PASSWORD }}
-#          port: ${{ secrets.SSH_PORT }}
-#          source: "target/*.jar"
-#          target: "/home/backend/be12-team1/msa/"
-#          rm: false
-#      - name: execute shell script
-#        uses: appleboy/ssh-action@master
-#        with:
-#          host: ${{ secrets.SSH_IP }}
-#          username: ${{ secrets.SSH_ID }}
-#          password: ${{ secrets.SSH_PASSWORD }}
-#          port: ${{ secrets.SSH_PORT }}
-#          script_stop: true
-#          script: "cd ~/msa&&pwd&&ls&&sh order.sh"
+name: order-service package
+
+on:
+  push:
+    branches: [ "dev" ]
+  workflow_dispatch:
+
+env:
+  REGISTRY_OWNER: nhnacademy-be12-trillion
+  REGISTRY: ghcr.io
+  IMAGE_NAME: order-service
+  JAVA_VERSION: 21
+  DEPLOY_DIR: ~/msa-project
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      - name: GitHub Packages 로그인
+        uses: docker/login-action@v3
+        with:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ${{ env.REGISTRY }}
+
+      - name: 이미지 태그 세팅
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.REGISTRY_OWNER }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest # latest 태그 고정
+
+      - name: 도커 이미지 빌드 & 푸시
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+
+      - name: 파일 전송 및 배포
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_IP }}
+          username: ${{ secrets.SSH_ID }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          REGISTRY_OWNER: ${{ env.REGISTRY_OWNER }}
+          DEPLOY_DIR: ${{ env.DEPLOY_DIR }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          script: |
+            PEER_1="order-peer1"
+            PEER_2="order-peer2"
+            echo "SSH 접속 및 디렉토리 이동..."
+            mkdir -p ${DEPLOY_DIR}
+            cd ${DEPLOY_DIR}
+
+            echo "Docker Registry 로그인"
+            echo ${GHCR_TOKEN} | docker login ${REGISTRY} -u ${REGISTRY_OWNER} --password-stdin
+
+            echo "최신 이미지 Pull 및 Peer 1 재시작..."
+            docker-compose pull ${PEER_1}
+            docker-compose up -d --no-deps ${PEER_1}
+  
+            while ! curl -s http://localhost:10407/actuator/health | grep UP; do sleep 5; done
+            
+            echo "최신 이미지 Pull 및 Peer 2 재시작..."
+            docker-compose pull ${PEER_2}
+            docker-compose up -d --no-deps ${PEER_2}
+  
+            echo "Docker Registry 로그아웃..."
+            docker logout ${REGISTRY}
+  
+            echo "Order Service Cluster 배포 완료!"

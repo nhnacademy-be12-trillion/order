@@ -37,7 +37,7 @@ public class TossPaymentClient {
                         status.isError(), response -> response.bodyToMono(String.class)
                         .flatMap(error -> Mono.error(new RuntimeException("TossAPI 오류 " + error)))
                 ).bodyToMono(TossPaymentResponseDto.class)
-                .block();
+                .block();//동기
     }
 
 

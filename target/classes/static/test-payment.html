@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>주문 생성 및 결제 통합 테스트</title>
+    <script src="https://js.tosspayments.com/v1/payment-widget"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2 { color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .section { margin-bottom: 20px; padding: 15px; border: 1px solid #eee; border-radius: 8px; }
+        .section h3 { margin-top: 0; color: #555; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 10px; }
+        .input-group label { width: 120px; font-weight: bold; align-self: center; }
+        input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; flex: 1; }
+
+        /* 버튼 스타일 */
+        .btn-primary { width: 100%; padding: 15px; background-color: #0064FF; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; margin-top: 10px; }
+        .btn-primary:hover { background-color: #0052cc; }
+        .btn-primary:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        .btn-pay { background-color: #333; margin-top: 20px; } /* 최종 결제 버튼 색상 구분 */
+        .btn-pay:hover { background-color: #555; }
+
+        .log-box { background: #333; color: #0f0; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 12px; height: 200px; overflow-y: scroll; margin-top: 20px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🛍️ 주문 생성 & 결제 통합 테스트</h2>
+
+    <div class="section">
+        <h3>1. 주문 정보 입력</h3>
+        <div class="input-group">
+            <label>주문자명</label>
+            <input type="text" id="ordererName" value="홍길동">
+        </div>
+        <div class="input-group">
+            <label>주문자 연락처</label>
+            <input type="text" id="ordererContact" value="010-1234-5678">
+        </div>
+        <div class="input-group">
+            <label>수령인명</label>
+            <input type="text" id="receiverName" value="김철수">
+        </div>
+        <div class="input-group">
+            <label>수령인 연락처</label>
+            <input type="text" id="receiverContact" value="010-9876-5432">
+        </div>
+        <div class="input-group">
+            <label>배송지 주소</label>
+            <input type="text" id="receiverAddress" value="서울시 강남구 테헤란로 123">
+        </div>
+        <div class="input-group">
+            <label>우편번호</label>
+            <input type="text" id="receiverPostCode" value="12345">
+        </div>
+
+        <hr>
+
+        <div class="input-group">
+            <label>책 ID</label>
+            <input type="number" id="bookId" value="1">
+        </div>
+        <div class="input-group">
+            <label>가격(개당)</label>
+            <input type="number" id="price" value="15000">
+        </div>
+        <div class="input-group">
+            <label>수량</label>
+            <input type="number" id="quantity" value="2">
+        </div>
+        <div class="input-group">
+            <label>포장지 ID</label>
+            <input type="number" id="packagingId" value="1" placeholder="없으면 비워두세요">
+        </div>
+
+        <button id="btn-process" class="btn-primary" onclick="startOrderProcess()">주문 생성 및 위젯 불러오기</button>
+    </div>
+
+    <div id="payment-section" class="section hidden">
+        <h3>2. 결제 수단 선택</h3>
+        <p>주문 번호: <strong id="disp-ord-no">-</strong> / 총 금액: <strong id="disp-amount">-</strong></p>
+
+        <div id="payment-method"></div>
+        <div id="agreement"></div> <button id="btn-final-pay" class="btn-primary btn-pay" onclick="requestTossPayment()">결제하기</button>
+    </div>
+
+    <div class="log-box" id="logs">
+        <div>[System] 준비 완료.</div>
+    </div>
+</div>
+
+<script>
+    // ================= CONFIG =================
+    const BASE_URL = "http://localhost:10414";
+    const API_PREFIX = "";
+    const TOSS_CLIENT_KEY = "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm"; // 본인의 클라이언트 키 확인 필요!
+    // ==========================================
+
+    const paymentWidget = PaymentWidget(TOSS_CLIENT_KEY, PaymentWidget.ANONYMOUS);
+
+    let currentOrderInfo = {
+        id: null,
+        number: null,
+        amount: 0
+    };
+
+    function log(msg) {
+        const logBox = document.getElementById('logs');
+        const line = document.createElement('div');
+        line.innerText = `> ${msg}`;
+        logBox.appendChild(line);
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    // 1. 주문 생성 ~ 위젯 렌더링까지의 프로세스
+    async function startOrderProcess() {
+        const btn = document.getElementById('btn-process');
+        btn.disabled = true;
+        btn.innerText = "처리 중...";
+
+        try {
+            // 1. 주문 생성 (Location 헤더에서 ID 추출)
+            const orderId = await createOrderAPI();
+            currentOrderInfo.id = orderId;
+
+            // 2. 주문 상세 조회
+            await fetchOrderDetailsAPI(orderId);
+
+            // 3. 결제 대기 생성
+            await createPendingPaymentAPI(orderId);
+
+            // 4. 위젯 렌더링 (여기서 멈춤, 사용자가 선택하도록)
+            renderWidget();
+
+        } catch (e) {
+            log(`❌ 프로세스 중단: ${e.message}`);
+            console.error(e);
+            btn.disabled = false;
+            btn.innerText = "다시 시도";
+        }
+    }
+
+    async function createOrderAPI() {
+        log("1. 주문 생성 API 호출 중...");
+
+        const orderData = {
+            ordererName: document.getElementById('ordererName').value,
+            ordererContact: document.getElementById('ordererContact').value,
+            receiverName: document.getElementById('receiverName').value,
+            receiverContact: document.getElementById('receiverContact').value,
+            receiverAddress: document.getElementById('receiverAddress').value,
+            receiverPostCode: document.getElementById('receiverPostCode').value,
+            deliveryDate: "2025-12-25T14:00:00",
+            nonMemberPassword: null,
+            pointUsage: 0,
+            orderItems: [
+                {
+                    bookId: parseInt(document.getElementById('bookId').value),
+                    quantity: parseInt(document.getElementById('quantity').value),
+                    price: parseInt(document.getElementById('price').value),
+                    couponId: null,
+                    packagingId: document.getElementById('packagingId').value ? parseInt(document.getElementById('packagingId').value) : null
+                }
+            ]
+        };
+
+        const response = await fetch(`${BASE_URL}${API_PREFIX}/orders`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-USER-ID": "1",
+                "X-USER-ROLE": "MEMBER"
+            },
+            body: JSON.stringify(orderData)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`주문 생성 실패 (${response.status}): ${errorText}`);
+        }
+
+        const locationHeader = response.headers.get('Location');
+        if (!locationHeader) throw new Error("Location 헤더 누락");
+
+        const urlParts = locationHeader.split('/');
+        const extractedId = urlParts[urlParts.length - 1];
+        const orderId = parseInt(extractedId);
+
+        if (isNaN(orderId)) throw new Error(`ID 파싱 실패: ${locationHeader}`);
+
+        log(`✅ 주문 생성 성공! ID: ${orderId}`);
+        return orderId;
+    }
+
+    async function fetchOrderDetailsAPI(orderId) {
+        log(`2. 주문 정보 조회 중...`);
+
+        const response = await fetch(`${BASE_URL}${API_PREFIX}/orders/${orderId}`, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                "X-USER-ID": "1",
+                "X-USER-ROLE": "MEMBER"
+            }
+        });
+
+        if (!response.ok) throw new Error("주문 조회 실패");
+
+        const data = await response.json();
+
+        let orderNumber = data.orderNumber || data.orderBaseResponse?.orderNumber;
+        let totalPrice = data.totalPrice || data.orderBaseResponse?.totalPrice;
+
+        if (!orderNumber && data.content && data.content.length > 0) {
+            orderNumber = data.content[0].orderNumber;
+            totalPrice = data.content[0].totalPrice;
+        }
+
+        if (!orderNumber || totalPrice === undefined) throw new Error("데이터 파싱 실패");
+
+        currentOrderInfo.number = orderNumber;
+        currentOrderInfo.amount = totalPrice;
+
+        log(`ℹ️ 주문번호: ${orderNumber}, 금액: ${totalPrice}원`);
+
+        document.getElementById('disp-ord-no').innerText = orderNumber;
+        document.getElementById('disp-amount').innerText = totalPrice.toLocaleString() + "원";
+    }
+
+    async function createPendingPaymentAPI(orderId) {
+        log("3. 결제 대기(PENDING) 상태 생성 중...");
+
+        const response = await fetch(`${BASE_URL}${API_PREFIX}/payments/${orderId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" }
+        });
+
+        if (!response.ok) throw new Error("결제 대기 생성 실패");
+        log("✅ 결제 대기 상태 생성 완료.");
+    }
+
+    // 4. 위젯만 렌더링 (자동 결제 X)
+    function renderWidget() {
+        log("4. 결제 수단 위젯을 불러옵니다. 원하는 수단을 선택하세요.");
+
+        const section = document.getElementById('payment-section');
+        section.classList.remove('hidden');
+
+        // 결제 UI 렌더링
+        paymentWidget.renderPaymentMethods(
+            "#payment-method",
+            { value: currentOrderInfo.amount }
+        );
+
+        // 이용약관 렌더링 (필수)
+        paymentWidget.renderAgreement("#agreement");
+
+        // 이 시점에서는 사용자가 UI를 조작할 수 있음.
+        // '결제하기' 버튼을 누르면 requestTossPayment()가 실행됨.
+    }
+
+    // 5. 사용자가 '결제하기' 버튼을 눌렀을 때 호출
+    function requestTossPayment() {
+        log("⏳ 토스 결제창으로 이동합니다...");
+
+        paymentWidget.requestPayment({
+            orderId: currentOrderInfo.number,
+            orderName: "테스트 도서 주문",
+            successUrl: `${BASE_URL}${API_PREFIX}/payments/success`,
+            failUrl: `${BASE_URL}${API_PREFIX}/payments/fail`,
+            customerEmail: "customer@example.com",
+            customerName: document.getElementById('ordererName').value,
+        }).catch(error => {
+            if (error.code === 'USER_CANCEL') {
+                log("⚠️ 사용자가 결제를 취소했습니다.");
+            } else {
+                log(`❌ 결제 요청 에러: ${error.message}`);
+            }
+        });
+    }
+</script>
+
+</body>
+</html>
