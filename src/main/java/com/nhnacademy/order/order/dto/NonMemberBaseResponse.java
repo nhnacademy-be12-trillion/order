@@ -6,8 +6,9 @@ import com.nhnacademy.order.order.domain.ReceiverInfo;
 
 import java.time.LocalDateTime;
 
-public record OrderBaseResponse(
+public record NonMemberBaseResponse(
     Long orderId,
+    String nonMemberPassword,
     Long memberId,
     String orderTitle,
     LocalDateTime orderDate,
@@ -16,4 +17,18 @@ public record OrderBaseResponse(
     int deliveryFee,
     OrdererInfo ordererInfo,
     ReceiverInfo receiverInfo
-) {}
+) {
+    public OrderBaseResponse toOrderBaseResponse() {
+        return new OrderBaseResponse(
+            orderId,
+            memberId,
+            orderTitle,
+            orderDate,
+            orderStatus,
+            totalPrice,
+            deliveryFee,
+            ordererInfo,
+            receiverInfo
+        );
+    }
+}

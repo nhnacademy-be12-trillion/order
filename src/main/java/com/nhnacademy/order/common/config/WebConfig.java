@@ -1,4 +1,4 @@
-package com.nhnacademy.order.common;
+package com.nhnacademy.order.common.config;
 
 import com.nhnacademy.order.common.resolver.UserInfoArgumentResolver;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +12,6 @@ import java.util.List;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
     private final UserInfoArgumentResolver userInfoArgumentResolver;
-
 
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {

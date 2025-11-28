@@ -24,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -34,19 +34,14 @@ import java.net.URI;
 @RestController
 @RequestMapping("/api")
 public class OrderController {
-    private static final String ADMIN_ACCESS_ONLY = "관리자만 이용 가능한 기능";
-    private static final String MEMBER_ACCESS_ONLY = "회원만 이용 가능한 기능";
 
     private final OrderService orderService;
 
     // 주문 전체 조회 (관리자)
     @GetMapping("/orders/admin")
+    @PreAuthorize("@securityService.isAdmin(#userInfo)")
     public ResponseEntity<Page<OrderResponse>> getAllOrderByAdmin(Pageable pageable,
                                                                   UserInfo userInfo) {
-        if (userInfo == null || userInfo.role() == null || !userInfo.role().equals("ADMIN")) {
-            throw new AccessDeniedException(ADMIN_ACCESS_ONLY);
-        }
-
         Page<OrderResponse> response = orderService.findAllOrders(pageable);
 
         return ResponseEntity.ok(response);
@@ -54,12 +49,9 @@ public class OrderController {
 
     // 주문 전체 조회 (회원)
     @GetMapping("/orders")
+    @PreAuthorize("@securityService.isAuthenticated(#userInfo)")
     public ResponseEntity<Page<OrderResponse>> getAllOrderByCustomer(Pageable pageable,
                                                                      UserInfo userInfo) {
-        if (userInfo == null) {
-            throw new AccessDeniedException(MEMBER_ACCESS_ONLY);
-        }
-
         Page<OrderResponse> response = orderService.findAllOrderByMemberId(pageable, userInfo.userId());
 
         return ResponseEntity.ok(response);
@@ -72,29 +64,23 @@ public class OrderController {
         // 비회원인 경우 userId가 null
         Long userId = (userInfo == null) ? null : userInfo.userId();
 
-        Long createdOrderId = orderService.createOrder(userId, request);
-
-        OrderResponse createdOrderResponse = orderService.findOrderByOrderId(createdOrderId);
+        OrderResponse createdOrderResponse = orderService.createOrder(userId, request);
 
         URI locationUri = ServletUriComponentsBuilder
                 .fromCurrentRequest()
                 .path("/{orderId}")
-                .buildAndExpand(createdOrderId)
+                .buildAndExpand(createdOrderResponse.orderId())
                 .toUri();
 
         return ResponseEntity.created(locationUri).body(createdOrderResponse);
-        //return ResponseEntity.created(locationUri).build();
     }
 
     // 주문 단건 조회 (회원)
     @GetMapping("/orders/{orderId}")
+    @PreAuthorize("@securityService.isOrderOwner(#orderId, #userInfo)")
     public ResponseEntity<OrderResponse> getOrderByCustomer(@PathVariable Long orderId,
                                                             UserInfo userInfo) {
-        if (userInfo == null) {
-            throw new AccessDeniedException(MEMBER_ACCESS_ONLY);
-        }
-
-        OrderResponse response = orderService.findOrderByCustomer(userInfo.userId(), orderId);
+        OrderResponse response = orderService.findOrderByOrderId(orderId);
 
         return ResponseEntity.ok(response);
     }
@@ -109,13 +95,10 @@ public class OrderController {
 
     // 주문 상품 상태 변경 (회원, 관리자)
     @PatchMapping("/orders/{orderId}/items/{orderItemId}")
+    @PreAuthorize("@securityService.isAuthenticated(#userInfo)")
     public ResponseEntity<OrderResponse> patchOrderItemStatusByCustomer(@PathVariable Long orderId, @PathVariable Long orderItemId,
                                                                         @RequestBody OrderItemStatusPatchRequest request,
                                                                         UserInfo userInfo) {
-        if (userInfo == null) {
-            throw new AccessDeniedException(MEMBER_ACCESS_ONLY);
-        }
-
         orderService.patchOrderItemStatus(userInfo.userId(), orderId, orderItemId, request);
 
         return ResponseEntity.ok().build();

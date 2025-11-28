@@ -24,8 +24,8 @@ public class PaymentFlowService {
     private final TossPaymentClient tossPaymentClient;
     private final OrderRepository orderRepository;
 
-    public PaymentResponse confirmPayment(PaymentRequestDto request) {
-        Order order = orderRepository.findByOrderNumber(request.orderNumber())
+    public PaymentResponse ConfirmPayment(PaymentRequestDto request) {
+        Order order = orderRepository.findOrderWithItemsByOrderNumber(request.orderNumber())
                 .orElseThrow(() -> new OrderNotFoundException(request.orderNumber()));
 
         if(order.getPaymentStatus().equals(PaymentStatus.COMPLETED)){
