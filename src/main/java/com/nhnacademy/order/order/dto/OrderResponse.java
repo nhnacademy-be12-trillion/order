@@ -2,7 +2,7 @@ package com.nhnacademy.order.order.dto;
 
 import com.nhnacademy.order.order.domain.OrdererInfo;
 import com.nhnacademy.order.order.domain.Order;
-import com.nhnacademy.order.order.domain.OrderStatus;
+import com.nhnacademy.order.order.domain.PaymentStatus;
 import com.nhnacademy.order.order.domain.ReceiverInfo;
 import com.nhnacademy.order.orderitem.dto.OrderItemResponse;
 
@@ -14,7 +14,7 @@ public record OrderResponse(
     Long memberId,
     String orderNumber,
     LocalDateTime orderDate,
-    OrderStatus orderStatus,
+    PaymentStatus paymentStatus,
     int totalPrice,
     int deliveryFee,
     OrdererInfo ordererInfo,
@@ -27,7 +27,7 @@ public record OrderResponse(
             orderBaseResponse.memberId(),
             orderBaseResponse.orderTitle(),
             orderBaseResponse.orderDate(),
-            orderBaseResponse.orderStatus(),
+            orderBaseResponse.paymentStatus(),
             orderBaseResponse.totalPrice(),
             orderBaseResponse.deliveryFee(),
             orderBaseResponse.ordererInfo(),
@@ -36,18 +36,18 @@ public record OrderResponse(
         );
     }
 
-    public static OrderResponse create(Order order) {
+    public static OrderResponse create(Order order, List<OrderItemResponse> orderItems) {
         return new OrderResponse(
             order.getOrderId(),
             order.getMemberId(),
             order.getOrderNumber(),
             order.getOrderDetails().orderDate(),
-            order.getOrderStatus(),
+            order.getPaymentStatus(),
             order.getOrderDetails().totalPrice(),
             order.getOrderDetails().deliveryFee(),
             order.getOrdererInfo(),
             order.getReceiverInfo(),
-            order.getOrderItems().stream().map(OrderItemResponse::create).toList()
+            orderItems
         );
     }
 }

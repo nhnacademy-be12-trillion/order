@@ -20,8 +20,6 @@ X-USER-ROLE: MEMBER
   "nonMemberPassword": null,
 
   "pointUsage": 1000,
-  "couponId": null,
-
   "orderItems": [
     {
       "bookId": 1,
@@ -32,6 +30,7 @@ X-USER-ROLE: MEMBER
     {
       "bookId": 2,
       "quantity": 2,
+      "couponId": null,
       "packagingId": 1
     }
   ]
@@ -54,12 +53,11 @@ Content-Type: application/json
   "nonMemberPassword": "nonmemberpass",
 
   "pointUsage": 0,
-  "couponId": null,
-
   "orderItems": [
     {
       "bookId": 3,
       "quantity": 1,
+      "couponId": null,
       "packagingId": 3
     }
   ]

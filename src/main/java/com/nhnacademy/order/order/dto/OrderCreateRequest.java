@@ -19,7 +19,5 @@ public record OrderCreateRequest(
 
     int pointUsage,
 
-    Long couponId,
-
     List<OrderItemCreateRequest> orderItems
 ) {}

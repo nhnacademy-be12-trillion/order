@@ -1,4 +1,4 @@
-package com.nhnacademy.order.common.config;
+package com.nhnacademy.order.common;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

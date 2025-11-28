@@ -1,13 +1,9 @@
 package com.nhnacademy.order.order.service;
 
-import com.nhnacademy.order.client.dto.BookResponse;
-import com.nhnacademy.order.client.service.BookService;
-import com.nhnacademy.order.client.service.CouponService;
 import com.nhnacademy.order.delivery.domain.DeliveryPolicy;
 import com.nhnacademy.order.delivery.exception.PolicyNotConfiguredException;
 import com.nhnacademy.order.delivery.repository.DeliveryPolicyRepository;
 import com.nhnacademy.order.order.domain.*;
-import com.nhnacademy.order.order.dto.NonMemberBaseResponse;
 import com.nhnacademy.order.order.dto.OrderBaseResponse;
 import com.nhnacademy.order.order.dto.OrderCreateRequest;
 import com.nhnacademy.order.order.dto.OrderResponse;
@@ -20,11 +16,12 @@ import com.nhnacademy.order.orderitem.dto.OrderItemCreateRequest;
 import com.nhnacademy.order.orderitem.dto.OrderItemResponse;
 import com.nhnacademy.order.orderitem.dto.OrderItemStatusPatchRequest;
 import com.nhnacademy.order.orderitem.repository.OrderItemRepository;
-import com.nhnacademy.order.packaging.domain.Packaging;
+import com.nhnacademy.order.packaging.exception.PackagingNotFoundException;
 import com.nhnacademy.order.packaging.repository.PackagingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,129 +33,147 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 @Service
+@Transactional(readOnly = true)
 public class OrderServiceImpl implements OrderService {
-    // Repository
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
-    private final PackagingRepository packagingRepository;
-    private final DeliveryPolicyRepository deliveryPolicyRepository;
-
-    // Client
-    private final BookService bookService;
-    private final CouponService couponService;
-
-    // Service
-    private final OrderCreateService orderCreateService;
-
-    // 사가 패턴
-    private final OrderOrchestrator orderOrchestrator;
-
-    // 비회원 주문 비밀번호 인코딩
     private final PasswordEncoder passwordEncoder;
+    private final DeliveryPolicyRepository deliveryPolicyRepository;
+    private final PackagingRepository packagingRepository;
 
     private static final String ORDER_NOT_FOUND_MESSAGE = "존재하지 않는 주문 ID: ";
 
-    // DTO (List<OrderItemCreateRequest>) -> Entity (List<OrderItem>)
-    private List<OrderItem> buildOrderItems(List<OrderItemCreateRequest> requests, Map<Long, BookResponse> bookInfoMap) {
-        List<Long> orderPackagingIds = requests.stream()
-                .map(OrderItemCreateRequest::packagingId)
-                .filter(Objects::nonNull)
-                .toList();
-
-        Map<Long, Integer> packagingPriceMap = packagingRepository.findAllById(orderPackagingIds).stream()
-                .collect(Collectors.toMap(Packaging::getPackagingId, Packaging::getPackagingPrice));
-
-        return requests.stream()
-                .map(request -> {
-                    int bookPrice = bookInfoMap.get(request.bookId()).price();
-                    int packagingPrice = 0;
-
-                    if (request.packagingId() != null) {
-                        packagingPrice = packagingPriceMap.getOrDefault(request.packagingId(), 0);
-                    }
-
-                    return OrderItem.create(null, request.bookId(), request.quantity(), bookPrice, packagingPrice);
-                })
-                .toList();
-    }
-
-    // 배송비 결정
-    private int determineDeliveryFee(int finalTotalPrice) {
-        DeliveryPolicy deliveryPolicy = deliveryPolicyRepository.findFirstByOrderByDeliveryPolicyIdAsc()
-                .orElseThrow(() -> new PolicyNotConfiguredException("배송 정책이 설정되지 않음"));
-
-        return (finalTotalPrice >= deliveryPolicy.getDeliveryPolicyThreshold())
-                ? 0
-                : deliveryPolicy.getDeliveryPolicyFee();
-    }
-
-    // 전체 주문 조회
     @Override
-    @Transactional(readOnly = true)
     public Page<OrderResponse> findAllOrders(Pageable pageable) {
         Page<Order> orders = orderRepository.findAll(pageable);
 
-        return orders.map(OrderResponse::create);
+        return orders.map(order -> {
+            List<OrderItemResponse> orderItems = orderItemRepository.findOrderItemByOrder_OrderId(order.getOrderId());
+
+            return OrderResponse.create(
+                order,
+                orderItems
+            );
+        });
     }
 
-    // 주문 생성
-    public OrderResponse createOrder(Long memberId, OrderCreateRequest request) {
-        // 1. OrderDetails 값이 불완전한 초기 Order 생성
-        String nonMemberPassword = Optional.ofNullable(request.nonMemberPassword())
-                .map(passwordEncoder::encode)
-                .orElse(null);
-        OrdererInfo ordererInfo = new OrdererInfo(request.ordererName(), request.ordererContact());
-        ReceiverInfo receiverInfo = new ReceiverInfo(request.receiverName(), request.receiverContact(), request.receiverAddress());
-        OrderDetails initialOrderDetails = OrderDetails.createInitial(request.receiverPostCode(), request.deliveryDate(), request.pointUsage(), request.couponId());
+    @Transactional
+    public Long createOrder(Long memberId, OrderCreateRequest request) {
 
-        Order order = orderCreateService.createInitialOrder(memberId, nonMemberPassword, ordererInfo, receiverInfo, initialOrderDetails);
+        // 0. 주문 상품 ID 리스트 추출
+        List<Long> bookIds = request.orderItems().stream()
+                .map(OrderItemCreateRequest::bookId)
+                .toList();
 
-        try {
-            // 2. 오케스트레이션 사가 시작 (재고 감소 -> 쿠폰 사용 -> 포인트 사용)
-            orderOrchestrator.processOrder(memberId, order);
+        Map<Long, Integer> stockMap = request.orderItems().stream()
+                .collect(Collectors.toMap(OrderItemCreateRequest::bookId, OrderItemCreateRequest::quantity));
 
-            // 3. 초기 결제 금액, 최종 결제 금액, 배송비 연산
-            List<Long> bookIds = request.orderItems().stream()
-                    .map(OrderItemCreateRequest::bookId)
-                    .toList();
+        // TODO 1: 도서 API -> 재고 확인 및 차감, 가격 검증
+        // bookService.decreaseStock(stockMap);
+        // Map<bookId, Price> realPrice = bookService.getRealPrice(bookIds);
+        // Map<bookId, Stock> stocks = bookService.getStocks(bookIds);
 
-            Map<Long, BookResponse> bookResponseMap = bookService.getBookInfos(bookIds);
+        // 1. OrderItemCreateRequest -> OrderItem (연관 관계 매핑은 아직 안 함)
+        List<OrderItem> orderItems = request.orderItems().stream()
+                .map(itemReq -> {
+                    int bookPrice = 0; // realPrice.get(itemReq.bookId()); // 도서 API에서 조회한 실제 가격
+                    int packagingPrice = 0;
 
-            List<OrderItem> orderItems = buildOrderItems(request.orderItems(), bookResponseMap);
+                    // 포장 정책을 조회해 포장 비용 계산
+                    if (itemReq.packagingId() != null) {
+                        packagingPrice = packagingRepository.findById(itemReq.packagingId())
+                                .orElseThrow(() -> new PackagingNotFoundException("포장 정보를 찾을 수 없음: " + itemReq.packagingId()))
+                                .getPackagingPrice();
+                    }
+                    return OrderItem.create(null, itemReq.bookId(), itemReq.quantity(), bookPrice, packagingPrice, itemReq.couponId());
+                })
+                .toList();
 
-            int originPrice = orderItems.stream()
-                    .mapToInt(OrderItem::getPrice)
-                    .sum();
+        // 2. 도서 + 포장비 금액
+        int totalPackagingPrice = orderItems.stream()
+                .mapToInt(orderItem -> orderItem.getPrice() + orderItem.getPackagingPrice())
+                .sum();
 
-            int totalPrice = originPrice;
+        // 3. 배송비 결정
+        DeliveryPolicy deliveryPolicy = deliveryPolicyRepository.findFirstByOrderByDeliveryPolicyIdAsc()
+                .orElseThrow(() -> new PolicyNotConfiguredException("배송 정책이 설정되지 않음"));
 
-            int couponDiscount = 0;
+        int deliveryFee = (totalPackagingPrice >= deliveryPolicy.getDeliveryPolicyThreshold())
+                ? 0
+                : deliveryPolicy.getDeliveryPolicyFee();
 
-            if (Objects.nonNull(request.couponId())) {
-                couponDiscount = couponService.calculateDiscount(request.couponId(), totalPrice);
-            }
+        // 4. 할인 전 결제 금액 결정
+        int originPrice = totalPackagingPrice + deliveryFee;
 
-            totalPrice -= couponDiscount;
+        // TODO 2: 쿠폰 API -> 쿠폰 사용 처리
+        Map<Long, Integer> couponMap = orderItems.stream()
+                .filter(orderItem -> orderItem.getCouponId() != null)
+                .collect(Collectors.toMap(OrderItem::getCouponId, OrderItem::getPrice));
 
-            int deliveryFee = determineDeliveryFee(totalPrice);
+         int discountAmount = 0; // couponService.applyCoupon(couponMap);
 
-            int pointUsage = request.pointUsage();
+        // TODO 3: 포인트 API -> 포인트 사용 처리
+         int pointUsage = request.pointUsage();
+         // pointService.usagePoint(pointUsage);
 
-            totalPrice -= pointUsage;
+        // 5. 최종 결제 금액 계산
+        int finalTotalPrice = originPrice - (discountAmount + pointUsage);
 
-            // 4. 연산한 값들을 최종적으로 Order에 반영 후 저장
-            orderCreateService.completeOrder(order, originPrice, totalPrice, deliveryFee, orderItems);
-        } catch (Exception e) {
-            // 5. 주문 생성 실패 (사가 패턴 실패 or 주문 생성 중 오류 발생)
-            orderCreateService.createFailureOrder(order);
-            throw e;
-        }
+        // 6. Order 객체 생성
+        OrdererInfo ordererInfo = new OrdererInfo(
+                request.ordererName(),
+                request.ordererContact()
+        );
 
-        return OrderResponse.create(order);
+        ReceiverInfo receiverInfo = new ReceiverInfo(
+                request.receiverName(),
+                request.receiverContact(),
+                request.receiverAddress()
+        );
+
+        OrderDetails orderDetails = OrderDetails.create(
+                request.receiverPostCode(),
+                request.deliveryDate(),
+                deliveryFee,
+                request.pointUsage(),
+                originPrice,
+                finalTotalPrice
+        );
+
+        Order order = Order.create(
+                memberId,
+                Optional.ofNullable(request.nonMemberPassword())
+                        .map(passwordEncoder::encode)
+                        .orElse(null),
+                ordererInfo,
+                receiverInfo,
+                orderDetails
+        );
+
+        // 7. OrderItem 리스트를 Order에 추가
+        orderItems.forEach(order::addOrderItem);
+
+        Order savedOrder = orderRepository.save(order);
+
+        return savedOrder.getOrderId();
     }
 
     @Override
-    @Transactional(readOnly = true)
+    public OrderResponse findOrderByCustomer(Long memberId, Long orderId) {
+        Optional<OrderBaseResponse> orderBaseResponseOptional = orderRepository.findBaseOrderById(orderId);
+
+        return orderBaseResponseOptional.map( orderBaseResponse -> {
+            if (!orderBaseResponse.memberId().equals(memberId)) {
+                throw new AccessDeniedException("주문 접근 권한 없음: " + orderId);
+            }
+
+            List<OrderItemResponse> orderItems = orderItemRepository.findOrderItemByOrder_OrderId(orderId);
+
+            return OrderResponse.create(orderBaseResponse, orderItems);
+        }).orElseThrow(() -> new OrderNotFoundException(ORDER_NOT_FOUND_MESSAGE + orderId));
+    }
+
+    @Override
     public OrderResponse findOrderByOrderId(Long orderId) {
         Optional<OrderBaseResponse> orderBaseResponseOptional = orderRepository.findBaseOrderById(orderId);
 
@@ -170,7 +185,6 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Page<OrderResponse> findAllOrderByMemberId(Pageable pageable, Long memberId) {
         Page<OrderBaseResponse> orderBaseResponses = orderRepository.findAllBaseOrderByMemberId(pageable, memberId);
 
@@ -192,8 +206,15 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public void patchOrderItemStatus(Long memberId, Long orderId, Long orderItemId, OrderItemStatusPatchRequest request) {
-        Order order = orderRepository.findOrderWithItemsById(orderId)
+        Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(ORDER_NOT_FOUND_MESSAGE + orderId));
+
+        // TODO: 관리자 권한도 고려해야 함
+        // 반품 요청, 주문 취소 -> 회원 / 비회원 가능
+        // 배송중, 배송 완료, 반품 완료 -> 관리자만 가능
+        if (!order.getMemberId().equals(memberId)) {
+            throw new AccessDeniedException("주문 접근 권한 없음: " + orderId);
+        }
 
         OrderItemStatusUpdateStrategy strategy = OrderItemStatusUpdateStrategy.from(request.status());
 
@@ -203,8 +224,9 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public void patchOrderItemStatusForNonMember(Long orderId, Long orderItemId, NonMemberOrderItemStatusPatchRequest request) {
-        Order order = orderRepository.findOrderWithItemsById(orderId)
-                .orElseThrow(() -> new OrderNotFoundException(ORDER_NOT_FOUND_MESSAGE));
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(ORDER_NOT_FOUND_MESSAGE + orderId));
 
         if (!passwordEncoder.matches(request.nonMemberPassword(), order.getNonMemberPassword())) {
             throw new OrderPasswordMismatchException("비회원 주문 비밀번호 불일치");
@@ -216,18 +238,20 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public OrderResponse findOrderByOrderNumber(String orderNumber, String nonMemberPassword) {
-        Optional<NonMemberBaseResponse> nonMemberBaseResponseOptional = orderRepository.findNonMemberOrderByOrderNumber(orderNumber);
+        Optional<Order> orderOptional = orderRepository.findByOrderNumber(orderNumber);
 
-        return nonMemberBaseResponseOptional.map(nonMemberBaseResponse -> {
-            if (!passwordEncoder.matches(nonMemberPassword, nonMemberBaseResponse.nonMemberPassword())) {
+        return orderOptional.map(order -> {
+            if (!passwordEncoder.matches(nonMemberPassword, order.getNonMemberPassword())) {
                 throw new OrderPasswordMismatchException("비회원 주문 비밀번호 불일치");
             }
 
-            List<OrderItemResponse> items = orderItemRepository.findOrderItemByOrder_OrderId(nonMemberBaseResponse.orderId());
+            List<OrderItemResponse> orderItems = orderItemRepository.findOrderItemByOrder_OrderId(order.getOrderId());
 
-            return OrderResponse.create(nonMemberBaseResponse.toOrderBaseResponse(), items);
+            return OrderResponse.create(
+                order,
+                orderItems
+            );
         }).orElseThrow(() -> new OrderNotFoundException(ORDER_NOT_FOUND_MESSAGE + orderNumber));
     }
 }
