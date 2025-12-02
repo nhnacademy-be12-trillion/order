@@ -2,7 +2,7 @@ name: order-service package
 
 on:
   push:
-    branches: [ "dev" ]
+    branches: [ "infra" ]
   workflow_dispatch:
 
 env:
@@ -36,8 +36,8 @@ jobs:
       - name: GitHub Packages 로그인
         uses: docker/login-action@v3
         with:
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ env.REGISTRY_OWNER }}
+          password: ${{ secrets.GHCR_TOKEN }}
           registry: ${{ env.REGISTRY }}
 
       - name: 이미지 태그 세팅
@@ -63,33 +63,27 @@ jobs:
           username: ${{ secrets.SSH_ID }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ secrets.SSH_PORT }}
-        env:
-          REGISTRY: ${{ env.REGISTRY }}
-          REGISTRY_OWNER: ${{ env.REGISTRY_OWNER }}
-          DEPLOY_DIR: ${{ env.DEPLOY_DIR }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
           script: |
-            PEER_1="order-peer1"
-            PEER_2="order-peer2"
+            SERVICE_NAME1="order-peer1"
+            SERVICE_NAME2="order-peer2"
             echo "SSH 접속 및 디렉토리 이동..."
-            mkdir -p ${DEPLOY_DIR}
-            cd ${DEPLOY_DIR}
+            mkdir -p ${{ env.DEPLOY_DIR }}
+            cd ${{ env.DEPLOY_DIR }}
 
             echo "Docker Registry 로그인"
-            echo ${GHCR_TOKEN} | docker login ${REGISTRY} -u ${REGISTRY_OWNER} --password-stdin
+            echo ${{ secrets.GHCR_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ env.REGISTRY_OWNER }} --password-stdin
 
             echo "최신 이미지 Pull 및 Peer 1 재시작..."
-            docker-compose pull ${PEER_1}
-            docker-compose up -d --no-deps ${PEER_1}
-  
-            while ! curl -s http://localhost:10407/actuator/health | grep UP; do sleep 5; done
+            docker compose rm -f ${SERVICE_NAME1}
+            docker compose pull ${SERVICE_NAME1}
+            docker compose up -d --no-deps ${SERVICE_NAME1}
             
             echo "최신 이미지 Pull 및 Peer 2 재시작..."
-            docker-compose pull ${PEER_2}
-            docker-compose up -d --no-deps ${PEER_2}
+            docker compose rm -f ${SERVICE_NAME2}
+            docker compose pull ${SERVICE_NAME2}
+            docker compose up -d --no-deps ${SERVICE_NAME2}
   
             echo "Docker Registry 로그아웃..."
-            docker logout ${REGISTRY}
+            docker logout ${{ env.REGISTRY }}
   
             echo "Order Service Cluster 배포 완료!"
