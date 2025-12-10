@@ -1,0 +1,9 @@
+target/
+.idea/
+.mvn/
+*.iml
+.DS_Store
+*.log
+*.bak
+*.swp
+*.swo

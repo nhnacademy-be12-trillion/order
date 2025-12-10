@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.nhnacademy.order.order.controller.OrderControllerImplTest
--------------------------------------------------------------------------------
-Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 12.79 s -- in com.nhnacademy.order.order.controller.OrderControllerImplTest

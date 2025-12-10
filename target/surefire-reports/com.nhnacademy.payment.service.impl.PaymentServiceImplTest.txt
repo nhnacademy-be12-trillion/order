@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.nhnacademy.payment.service.impl.PaymentServiceImplTest
--------------------------------------------------------------------------------
-Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.493 s -- in com.nhnacademy.payment.service.impl.PaymentServiceImplTest

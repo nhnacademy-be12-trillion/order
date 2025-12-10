@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.nhnacademy.order.client.FeignSagaInterceptorPureTest
--------------------------------------------------------------------------------
-Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.467 s -- in com.nhnacademy.order.client.FeignSagaInterceptorPureTest
