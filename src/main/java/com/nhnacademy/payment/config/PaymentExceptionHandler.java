@@ -13,7 +13,10 @@
 package com.nhnacademy.payment.config;
 
 import com.nhnacademy.payment.dto.response.PaymentErrorResponse;
-import com.nhnacademy.payment.exception.*;
+import com.nhnacademy.payment.exception.PaymentNotFoundException;
+import com.nhnacademy.payment.exception.PaymentSaveFailException;
+import com.nhnacademy.payment.exception.PaymentStateConflictException;
+import com.nhnacademy.payment.exception.PaymentValidationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -40,7 +43,7 @@ public class PaymentExceptionHandler {
 
     //결제 상태에 관한 예외 처리
     @ExceptionHandler(PaymentStateConflictException.class)
-    public ResponseEntity<PaymentErrorResponse> handlePaymentSaveException(Exception e) {
+    public ResponseEntity<PaymentErrorResponse> handlePaymentStateConflictException(PaymentStateConflictException e) {
         log.info("결제 상태 충돌 : {}",e.getMessage());
         PaymentErrorResponse response = PaymentErrorResponse.of(
                 "PAYMENT_STATE_CONFLICT",

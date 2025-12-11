@@ -1,0 +1,22 @@
+#server:
+#  port: ${SERVER_PORT:10407}
+#
+#eureka:
+#  client:
+#    fetch-registry: true
+#    register-with-eureka: true
+#    service-url:
+#      defaultZone=${EUREKA_URL}
+
+spring:
+  application:
+    name: order-service
+#  config:
+#    import:
+#      configserver: ${CONFIG_SERVER_URI:http//localhost:10418}
+#  cloud:
+#    config:
+#      username: be12-team1
+#      password: nhnacademy123!
+  profiles:
+    active: dev

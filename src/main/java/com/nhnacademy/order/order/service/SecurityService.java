@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @RequiredArgsConstructor
-@Service("securityService")
+@Service
 public class SecurityService {
     private final OrderRepository orderRepository;
 
@@ -17,7 +17,7 @@ public class SecurityService {
     }
 
     // 해당 주문의 소유자인지 검사
-    public boolean isOrderOwner(Long orderId, UserInfo userInfo) {
+    public boolean isOrderOwner(UserInfo userInfo, Long orderId) {
         Long ownerMemberId = orderRepository.findMemberIdByOrderId(orderId)
                 .orElseThrow(() -> new OrderNotFoundException("존재하지 않는 주문 ID: " + orderId));
 

@@ -1,0 +1,16 @@
+@hostname = http://localhost:10407
+
+### 배송 정책 업데이트
+PUT {{hostname}}/api/orders/delivery-policy
+X-USER-ID: 1
+X-USER-ROLE: ADMIN
+Content-Type: application/json
+
+{
+  "deliveryPolicyFee": 1000,
+  "deliveryPolicyThreshold": 50000
+}
+
+### 배송 정책 가져오기
+GET {{hostname}}/api/orders/delivery-policy
+

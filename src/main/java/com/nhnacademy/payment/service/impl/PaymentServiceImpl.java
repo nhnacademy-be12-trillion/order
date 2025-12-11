@@ -3,21 +3,20 @@ package com.nhnacademy.payment.service.impl;
 
 import com.nhnacademy.order.order.domain.Order;
 import com.nhnacademy.order.order.repository.OrderRepository;
-import com.nhnacademy.payment.domain.Payment;
-import com.nhnacademy.payment.domain.PaymentStatus;
-import com.nhnacademy.payment.dto.response.PaymentResponse;
 import com.nhnacademy.payment.dto.response.TossPaymentResponseDto;
+import com.nhnacademy.payment.entity.Payment;
+import com.nhnacademy.payment.entity.PaymentStatus;
 import com.nhnacademy.payment.exception.PaymentNotFoundException;
 import com.nhnacademy.payment.exception.PaymentStateConflictException;
 import com.nhnacademy.payment.repository.PaymentRepository;
 import com.nhnacademy.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -31,7 +30,7 @@ public class PaymentServiceImpl implements PaymentService {
     //DB에 담는 시점에서만 Transactional 호출하면 됨.
     @Override
     @Transactional
-    public PaymentResponse savePayment(TossPaymentResponseDto response, Order order) {
+    public Payment savePayment(TossPaymentResponseDto response, Order order) {
 
         Payment savePayment = Payment.builder()
                 .paymentKey(response.getPaymentKey())
@@ -48,7 +47,7 @@ public class PaymentServiceImpl implements PaymentService {
         orderRepository.save(order);
 
 
-        return PaymentResponse.from(savePayment);
+        return savePayment;
     }
 
     //결제 취소시
@@ -70,35 +69,34 @@ public class PaymentServiceImpl implements PaymentService {
         if(findPayment.getPaymentStatus() == PaymentStatus.CANCELED) {
             findPayment.getOrder().setOrderStatus(com.nhnacademy.order.order.domain.OrderStatus.CANCELED);
         }
-        //todo 주문의 결제 상태에 부분취소를 같이 추가한다면 partial canceled 상태 업데이트 해주고 아니면 그냥 completed 유지.
     }
     //결제 정보 반환 -> 서버에서 처리할때만 사용할듯
     @Override
     @Transactional(readOnly = true)
     public Payment getPaymentByOrderNumber(String orderNumber) {
-        Payment payment =  paymentRepository.findByOrder_OrderNumber(orderNumber);
+        Payment payment = paymentRepository.findByOrder_OrderNumber(orderNumber);
         if(payment==null){
             throw new PaymentNotFoundException("결제 정보가 존재하지 않습니다.");
         }
+
         return payment;
     }
+
 
     //특정 결제 내역 조회 -> 사용자에게 보여줄 페이지(단건 조회)
     @Override
     @Transactional(readOnly = true)
-    public PaymentResponse getPaymentById(Long paymentId) {
-        Payment payment = paymentRepository.findById(paymentId).orElseThrow(
+    public Payment getPaymentById(Long paymentId) {
+
+        return paymentRepository.findById(paymentId).orElseThrow(
                 () -> new PaymentNotFoundException("결제 정보가 존재하지 않습니다."+paymentId)
         );
-
-        return PaymentResponse.from(payment);
     }
-
 
     //결제 내역 전체 조회,
     @Override
     @Transactional(readOnly = true)
-    public Page<PaymentResponse> getAllPayments(Pageable pageable) {
-        return paymentRepository.findAll(pageable).map(PaymentResponse::from);
+    public Page<Payment> getAllPayments(Pageable pageable) {
+        return paymentRepository.findAll(pageable);
     }
 }

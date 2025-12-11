@@ -20,4 +20,9 @@ public class DeliveryPolicy {
 
     @Column(name = "deliverypolicy_threshold")
     private int deliveryPolicyThreshold;
+
+    public void update(int deliveryPolicyFee, int deliveryPolicyThreshold) {
+        this.deliveryPolicyFee = deliveryPolicyFee;
+        this.deliveryPolicyThreshold = deliveryPolicyThreshold;
+    }
 }

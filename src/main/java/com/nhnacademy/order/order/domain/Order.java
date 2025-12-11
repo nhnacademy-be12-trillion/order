@@ -1,8 +1,9 @@
 package com.nhnacademy.order.order.domain;
 
-import com.nhnacademy.order.order.exception.OrderStatusTransitionException;
+import com.nhnacademy.order.common.entity.BaseTimeEntity;
 import com.nhnacademy.order.orderitem.domain.OrderItem;
 import com.nhnacademy.order.orderitem.domain.OrderItemStatus;
+import com.nhnacademy.order.orderitem.exception.OrderItemNotFoundException;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -17,7 +18,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-public class Order {
+public class Order extends BaseTimeEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "order_id")
@@ -39,6 +40,7 @@ public class Order {
 
     @Setter
     @Column(name = "order_status")
+    @Enumerated(value = EnumType.STRING)
     private OrderStatus orderStatus;
 
     @Embedded
@@ -65,7 +67,7 @@ public class Order {
             prefix + UUID.randomUUID(),
             memberId,
             encryptedPassword,
-            OrderStatus.PENDING,
+            OrderStatus.CREATING,
             ordererInfo,
             receiverInfo,
             orderDetails,
@@ -80,6 +82,13 @@ public class Order {
     public void addOrderItem(OrderItem orderItem) {
         orderItems.add(orderItem);
         orderItem.setOrder(this);
+    }
+
+    public OrderItem findOrderItemInOrder(Long orderItemId) {
+        return this.getOrderItems().stream()
+                .filter(orderItem -> orderItem.getOrderItemId().equals(orderItemId))
+                .findFirst()
+                .orElseThrow(() -> new OrderItemNotFoundException("존재하지 않는 주문 상품 ID: " + orderItemId));
     }
 
     public void reflectItemStatusChange() {

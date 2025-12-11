@@ -1,11 +1,15 @@
 package com.nhnacademy.order.common.handler;
 
 import com.nhnacademy.order.common.dto.ErrorResponse;
+import com.nhnacademy.order.common.exception.AccessDeniedException;
+import com.nhnacademy.order.delivery.exception.PolicyNotConfiguredException;
+import com.nhnacademy.order.order.exception.OrderCreateFailureException;
 import com.nhnacademy.order.order.exception.OrderNotFoundException;
 import com.nhnacademy.order.order.exception.OrderPasswordMismatchException;
 import com.nhnacademy.order.order.exception.OrderStatusTransitionException;
+import com.nhnacademy.order.orderitem.exception.OrderItemNotFoundException;
+import com.nhnacademy.order.packaging.exception.PackagingNotFoundException;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -15,8 +19,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
     @ExceptionHandler({
         OrderNotFoundException.class,
+        OrderItemNotFoundException.class,
+        PolicyNotConfiguredException.class,
+        PackagingNotFoundException.class
     })
-    public ResponseEntity<ErrorResponse> handleNotFoundException(OrderNotFoundException ex) {
+    public ResponseEntity<ErrorResponse> handleNotFoundException(Exception ex) {
         ErrorResponse errorResponse = ErrorResponse.create(ex.getMessage(), "NOT_FOUND");
 
         return ResponseEntity.status(404).body(errorResponse);
@@ -55,6 +62,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleStatusTransitionException(OrderStatusTransitionException ex) {
         ErrorResponse errorResponse = ErrorResponse.create(ex.getMessage(), "INVALID_STATUS_TRANSITION");
         return ResponseEntity.status(409).body(errorResponse);
+    }
+
+    @ExceptionHandler({
+            OrderCreateFailureException.class
+    })
+    public ResponseEntity<ErrorResponse> handleOrderCreateFailureException(OrderCreateFailureException ex) {
+        ErrorResponse errorResponse = ErrorResponse.create(ex.getMessage(), "SERVICE_UNAVAILABLE");
+        return ResponseEntity.status(503).body(errorResponse);
     }
 
     @ExceptionHandler({

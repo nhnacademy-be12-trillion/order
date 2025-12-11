@@ -5,10 +5,9 @@ import com.nhnacademy.order.order.domain.OrderStatus;
 import com.nhnacademy.order.order.exception.OrderNotFoundException;
 import com.nhnacademy.order.order.repository.OrderRepository;
 import com.nhnacademy.payment.config.TossPaymentClient;
-import com.nhnacademy.payment.domain.Payment;
 import com.nhnacademy.payment.dto.reqeust.PaymentRequestDto;
-import com.nhnacademy.payment.dto.response.PaymentResponse;
 import com.nhnacademy.payment.dto.response.TossPaymentResponseDto;
+import com.nhnacademy.payment.entity.Payment;
 import com.nhnacademy.payment.exception.PaymentSaveFailException;
 import com.nhnacademy.payment.exception.PaymentStateConflictException;
 import com.nhnacademy.payment.exception.PaymentValidationException;
@@ -30,13 +29,13 @@ public class PaymentFlowService {
     //결제 승인은 이미 승인된 상태만 생각 주문을 취소해도 취소한 주문에 대해서 다시 주문을 할 수 있음
     //당연한 말이지만 결제 대기중인 주문 상태건은 결제 승인 가능하게 해야 함.
     //결제 승인 -> 취소나 대기 중은 승인 가능하게, 이미 결제 처리되었다면? 결제 승인 불가능 하게
-    public PaymentResponse confirmPayment(PaymentRequestDto request) {
+    public Payment confirmPayment(PaymentRequestDto request) {
         // 결제를 승인하려 했을때 찾을 수 없는 주문 건이라면?
         Order order = orderRepository.findOrderWithItemsByOrderNumber(request.orderNumber())
                 .orElseThrow(() -> new OrderNotFoundException(request.orderNumber()));
 
         //view에서 뿌린 금액과 db에 저장된 금액이 일치하지 않을 시?
-        if(order.getOrderDetails().totalPrice() != request.amount()){
+        if(!request.amount().equals(order.getOrderDetails().totalPrice())){
             throw new PaymentValidationException("주문 금액과 결제 금액이 일치 하지 않습니다.");
         }
 
@@ -68,8 +67,7 @@ public class PaymentFlowService {
     }
 
 
-    //결제 취소 -> 주문이 결제 대기이거나 이미 취소됐다면 취소 못하게 해야 함.
-    //todo 결제 취소 반환 타입도 바꿔야할 듯?
+    //결제 취소 -> 주문이 결제 대기이거나 이미 취소됐다면 취소 못하게 해야 함, 배송 전 도서에 대해서만 부른다면.
     public void cancelPayment(String orderNumber,String cancelReason,Integer cancelAmount) {
         Payment payment = paymentService.getPaymentByOrderNumber(orderNumber);
 

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>관리자 결제 관리 - NHN Books</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f4f6f9; padding-top: 20px; }
+    .container { background-color: white; padding: 30px; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+    .table th { background-color: #343a40; color: white; text-align: center; }
+    .table td { vertical-align: middle; text-align: center; }
+    .status-badge { font-size: 0.85rem; padding: 5px 10px; border-radius: 20px; }
+    .status-DONE { background-color: #d1e7dd; color: #0f5132; } /* 초록 */
+    .status-CANCELED { background-color: #f8d7da; color: #842029; } /* 빨강 */
+    .status-PARTIAL_CANCELED { background-color: #fff3cd; color: #664d03; } /* 노랑 */
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>💳 관리자 결제 내역 관리</h2>
+    <button class="btn btn-outline-primary" onclick="loadPayments(0)">🔄 새로고침</button>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover table-bordered">
+      <thead>
+      <tr>
+        <th>ID</th>
+        <th>주문번호</th>
+        <th>결제 Key</th>
+        <th>총 금액</th>
+        <th>상태</th>
+        <th>승인일시</th>
+        <th>영수증</th>
+        <th>관리</th>
+      </tr>
+      </thead>
+      <tbody id="payment-list-body">
+      <tr><td colspan="8" class="text-center py-4">데이터를 불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <nav>
+    <ul class="pagination justify-content-center" id="pagination">
+    </ul>
+  </nav>
+</div>
+
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title">결제 취소 처리</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="cancelForm">
+          <div class="mb-3">
+            <label class="form-label fw-bold">주문 번호</label>
+            <input type="text" class="form-control" id="modalOrderNumber" readonly>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">취소 사유 (필수)</label>
+            <input type="text" class="form-control" id="modalCancelReason" value="관리자 직권 취소" placeholder="사유를 입력하세요">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">취소 금액 (선택)</label>
+            <input type="number" class="form-control" id="modalCancelAmount" placeholder="비워두면 전액 취소">
+            <small class="text-muted">※ 부분 취소 시에만 금액을 입력하세요.</small>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+        <button type="button" class="btn btn-danger" onclick="submitCancel()">취소 승인</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  let currentPage = 0;
+  const pageSize = 10;
+  const cancelModal = new bootstrap.Modal(document.getElementById('cancelModal'));
+
+  // 페이지 로드 시 실행
+  document.addEventListener("DOMContentLoaded", () => {
+    loadPayments(0);
+  });
+
+  // 1. 결제 목록 조회 함수 (GET /api/admin/payment)
+  async function loadPayments(page) {
+    currentPage = page;
+    try {
+      // Spring Data Pageable 파라미터: page, size, sort
+      const response = await fetch(`/api/admin/payment?page=${page}&size=${pageSize}&sort=paymentId,desc`);
+
+      if (!response.ok) throw new Error("데이터 로드 실패");
+
+      const data = await response.json();
+      renderTable(data.content); // Page 객체의 content가 실제 리스트
+      renderPagination(data);    // 페이징 처리
+    } catch (error) {
+      console.error(error);
+      document.getElementById("payment-list-body").innerHTML =
+              `<tr><td colspan="8" class="text-center text-danger">데이터를 불러오지 못했습니다.</td></tr>`;
+    }
+  }
+
+  // 2. 테이블 렌더링
+  function renderTable(payments) {
+    const tbody = document.getElementById("payment-list-body");
+    tbody.innerHTML = "";
+
+    if (payments.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center">결제 내역이 없습니다.</td></tr>`;
+      return;
+    }
+
+    payments.forEach(pay => {
+      // 날짜 포맷팅
+      const approvedAt = pay.approvedAt ? new Date(pay.approvedAt).toLocaleString() : '-';
+      // 금액 포맷팅
+      const amount = Number(pay.totalAmount).toLocaleString() + "원";
+      // 상태별 배지 스타일
+      const statusClass = `status-${pay.status}`;
+
+      // 취소 버튼 활성화 여부 (이미 취소된 건은 버튼 비활성화 등 로직 추가 가능)
+      const isCanceled = pay.status === 'CANCELED';
+      const btnDisabled = isCanceled ? 'disabled' : '';
+      const btnText = isCanceled ? '취소됨' : '취소';
+
+      const row = `
+                <tr>
+                    <td>${pay.paymentId}</td>
+                    <td class="fw-bold">${pay.orderNumber}</td>
+                    <td class="small text-muted">${pay.paymentKey}</td>
+                    <td>${amount}</td>
+                    <td><span class="status-badge ${statusClass}">${pay.status}</span></td>
+                    <td>${approvedAt}</td>
+                    <td>
+                        <a href="${pay.receiptUrl}" target="_blank" class="btn btn-sm btn-outline-info">영수증</a>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-danger"
+                                onclick="openCancelModal('${pay.orderNumber}')"
+                                ${btnDisabled}>
+                            ${btnText}
+                        </button>
+                    </td>
+                </tr>
+            `;
+      tbody.innerHTML += row;
+    });
+  }
+
+  // 3. 페이징 버튼 렌더링
+  function renderPagination(pageData) {
+    const pagination = document.getElementById("pagination");
+    pagination.innerHTML = "";
+
+    const totalPages = pageData.totalPages;
+    const curr = pageData.number; // 현재 페이지 (0부터 시작)
+
+    // 이전 버튼
+    pagination.innerHTML += `
+            <li class="page-item ${pageData.first ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="loadPayments(${curr - 1})">이전</a>
+            </li>
+        `;
+
+    // 페이지 번호 (간단하게 현재 페이지 주변만 표시하거나 전체 표시)
+    for (let i = 0; i < totalPages; i++) {
+      pagination.innerHTML += `
+                <li class="page-item ${i === curr ? 'active' : ''}">
+                    <a class="page-link" href="#" onclick="loadPayments(${i})">${i + 1}</a>
+                </li>
+            `;
+    }
+
+    // 다음 버튼
+    pagination.innerHTML += `
+            <li class="page-item ${pageData.last ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="loadPayments(${curr + 1})">다음</a>
+            </li>
+        `;
+  }
+
+  // 4. 취소 모달 열기
+  function openCancelModal(orderNumber) {
+    document.getElementById("modalOrderNumber").value = orderNumber;
+    document.getElementById("modalCancelAmount").value = ""; // 초기화
+    document.getElementById("modalCancelReason").value = "관리자 직권 취소";
+    cancelModal.show();
+  }
+
+  // 5. 취소 요청 전송 (POST /api/admin/payment/cancel)
+  async function submitCancel() {
+    const orderNumber = document.getElementById("modalOrderNumber").value;
+    const reason = document.getElementById("modalCancelReason").value;
+    const amountVal = document.getElementById("modalCancelAmount").value;
+
+    // 부분 취소 금액이 있으면 숫자 변환, 없으면 null (백엔드에서 전액 취소 처리)
+    const amount = amountVal ? Number(amountVal) : null;
+
+    if (!reason) {
+      alert("취소 사유를 입력해주세요.");
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin/payment/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderNumber: orderNumber,
+          cancelReason: reason,
+          cancelAmount: amount
+        })
+      });
+
+      if (response.ok) { // 204 No Content or 200 OK
+        alert("성공적으로 취소 처리되었습니다.");
+        cancelModal.hide();
+        loadPayments(currentPage); // 목록 새로고침
+      } else {
+        const text = await response.text();
+        alert("취소 실패: " + text);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("서버 통신 중 오류가 발생했습니다.");
+    }
+  }
+</script>
+
+</body>
+</html>

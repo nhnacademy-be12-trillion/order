@@ -2,10 +2,10 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>주문서 - NHN Books</title>
+    <title>주문서 - NHN Books (Sample Data)</title>
     <script src="https://js.tosspayments.com/v1/payment"></script>
-
     <style>
+        /* 기존 스타일 유지 */
         body { font-family: sans-serif; background-color: #f9f9f9; display: flex; justify-content: center; padding-top: 50px; }
         .wrapper { width: 600px; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
         h1 { font-size: 24px; margin-bottom: 30px; color: #333; }
@@ -18,25 +18,26 @@
         .method-btn.selected { border-color: #3182f6; background-color: #e8f3ff; color: #3182f6; }
         .submit-btn { width: 100%; padding: 16px; background-color: #3182f6; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; }
         .submit-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+        .info-box { background: #e8f3ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; line-height: 1.6; color: #1b64da; }
     </style>
 </head>
-
 <body>
 <div class="wrapper">
-    <h1>주문 / 결제</h1>
+    <h1>주문 / 결제 (DB 연동 테스트)</h1>
+    <div class="info-box">
+        <strong>[DB 데이터 매핑 확인]</strong><br/>
+        주문번호: ORD-SAMPLE-001 (필수)<br/>
+        결제금액: 56,000원 (필수)<br/>
+        주문자: 테스트 주문자
+    </div>
 
     <div class="input-group">
         <label>주문자명</label>
-        <input type="text" id="ordererName" value="홍길동" />
+        <input type="text" id="ordererName" value="테스트 주문자" readonly />
     </div>
     <div class="input-group">
         <label>연락처</label>
-        <input type="text" id="ordererContact" value="010-1234-5678" placeholder="010-0000-0000" />
-    </div>
-
-    <div class="input-group" style="background: #f0f0f0; padding: 10px; border-radius: 8px; font-size: 12px; color: #666;">
-        <p><strong>[테스트 모드]</strong> 아래 정보가 함께 전송됩니다:</p>
-        <p>수령인: 김철수 / 배송지: 광주광역시 동구... / 배송일: 내일 오전 10시</p>
+        <input type="text" id="ordererContact" value="010-1234-5678" readonly />
     </div>
 
     <label>결제 수단 선택</label>
@@ -50,11 +51,12 @@
     </div>
 
     <button class="submit-btn" id="payment-button" onclick="processPayment()">
-        결제하기
+        56,000원 결제하기
     </button>
 </div>
 
 <script>
+    // 테스트용 클라이언트 키 (변경 필요 시 수정)
     const clientKey = "test_ck_vZnjEJeQVxnQWGOa5XOq8PmOoBN0";
     const tossPayments = TossPayments(clientKey);
     let selectedMethod = '카드';
@@ -70,57 +72,38 @@
         });
     }
 
-    // 내일 날짜 구하기 (배송일 유효성 검사 통과용)
-    function getTomorrowDate() {
-        const date = new Date();
-        date.setDate(date.getDate() + 1);
-        return date.toISOString().split('T')[0] + "T10:00:00";
-    }
-
     async function processPayment() {
         const button = document.getElementById("payment-button");
         button.disabled = true;
-        button.innerText = "처리 중...";
 
         try {
-            // ============================================================
-            // [수정] 백엔드 요청을 건너뛰고 가짜 데이터로 테스트합니다.
-            // ============================================================
+            // [중요] DB에 저장된 주문 정보와 정확히 일치해야 합니다.
+            const dbOrderNumber = "ORD-SAMPLE-008";
+            const dbAmount = 56000;
+            const dbOrderName = "테스트 도서 1 외 1건";
+            const dbCustomerName = document.getElementById("ordererName").value;
 
-            // 1. 실제 백엔드 요청 주석 처리
-            /*
-            const response = await fetch('/api/orders', { ... });
-            if (!response.ok) throw new Error(...);
-            const orderData = await response.json();
-            */
+            // 현재 페이지의 URL 기반으로 success URL 설정 (포트 자동 감지)
+            const currentOrigin = window.location.origin;
 
-            // 2. 가짜 주문 데이터 생성 (테스트용)
-            // Toss는 이미 결제된 orderId를 다시 쓰면 에러가 나므로, 시간 기반으로 랜덤 ID 생성
-            const mockOrderNumber = "TEST-ORDER-" + new Date().getTime();
-            const mockAmount = 50000; // 테스트 결제 금액 (50,000원)
-            const mockOrderName = "테스트 상품 외 1건";
-            const mockCustomerName = document.getElementById("ordererName").value;
+            // 주의: 만약 Spring Boot 정적 리소스라면 "/success.html", View Controller라면 "/success"
+            const successUrl = currentOrigin + "/success.html";
+            const failUrl = currentOrigin + "/fail.html";
 
-            console.log("⚠️ [테스트 모드] 백엔드 없이 결제창을 호출합니다.");
-            console.log("주문번호:", mockOrderNumber);
-
-            // [Step B] Toss 결제창 호출 (가짜 데이터 사용)
             await tossPayments.requestPayment(selectedMethod, {
-                amount: mockAmount,
-                orderId: mockOrderNumber,
-                orderName: mockOrderName,
-                customerName: mockCustomerName,
+                amount: dbAmount,
+                orderId: dbOrderNumber,
+                orderName: dbOrderName,
+                customerName: dbCustomerName,
                 customerEmail: "test@example.com",
-                successUrl: window.location.origin + "/success.html",
-                failUrl: window.location.origin + "/fail.html",
+                successUrl: successUrl,
+                failUrl: failUrl,
             });
 
         } catch (error) {
             console.error("Error:", error);
-            // 결제창이 닫히거나 에러가 나면 버튼 다시 활성화
-            alert("결제 테스트 중 오류: " + error.message);
+            alert("결제 창 호출 실패: " + error.message);
             button.disabled = false;
-            button.innerText = "결제하기";
         }
     }
 </script>

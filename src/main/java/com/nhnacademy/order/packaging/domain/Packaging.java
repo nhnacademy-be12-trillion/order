@@ -21,8 +21,16 @@ public class Packaging {
     @Column(name = "packaging_price")
     private int packagingPrice;
 
-    public Packaging(String packagingType, int packagingPrice) {
+    private Packaging(String packagingType, int packagingPrice) {
         this.packagingType = packagingType;
+        this.packagingPrice = packagingPrice;
+    }
+
+    public static Packaging create(String packagingType, int packagingPrice) {
+        return new Packaging(packagingType, packagingPrice);
+    }
+
+    public void updatePrice(int packagingPrice) {
         this.packagingPrice = packagingPrice;
     }
 }

@@ -5,6 +5,7 @@ import com.nhnacademy.order.client.service.CouponService;
 import com.nhnacademy.order.client.service.MemberService;
 import com.nhnacademy.order.order.domain.*;
 import com.nhnacademy.order.order.exception.OrderCreateFailureException;
+import com.nhnacademy.order.order.service.OrderCompensateService;
 import com.nhnacademy.order.ordersaga.service.SagaUpdateService;
 import com.nhnacademy.order.orderitem.domain.OrderItem;
 import com.nhnacademy.order.ordersaga.creation.domain.CreateSagaStep;
@@ -24,14 +25,15 @@ public class OrderCreateOrchestrator {
     private final MemberService memberService;
     private final CouponService couponService;
     private final BookService bookService;
+    private final OrderCompensateService orderCompensateService;
 
-    public void processCreateOrder(Long memberId, Order order) {
-        OrderCreateSaga saga = OrderCreateSaga.create(order.getOrderId());
-
+    public void processCreateOrder(OrderCreateSaga saga, Order order) {
         // 1. 사가 시작
         sagaUpdateService.updateCreateSagaStep(saga, CreateSagaStep.STARTED);
 
         UUID sagaId = saga.getSagaId();
+
+        Long memberId = order.getMemberId();
 
         int pointUsage = order.getOrderDetails().pointUsage();
 
@@ -42,73 +44,98 @@ public class OrderCreateOrchestrator {
                 .collect(Collectors.toMap(OrderItem::getBookId, OrderItem::getQuantity));
 
         try {
-            // 2. 도서 API에 재고 감소 요청
-            bookService.decreaseStocks(sagaId, quantityMap);
+            // 2. 재고 감소 중
+            sagaUpdateService.updateCreateSagaStep(saga, CreateSagaStep.STOCK_DECREASING);
 
-            // 3. 사가 상태 업데이트 (재고 감소 성공)
+            // 3. 도서 API에 재고 감소 요청
+            bookService.decreaseStocks(quantityMap);
+
+            // 4. 사가 상태 업데이트 (재고 감소 성공)
             sagaUpdateService.updateCreateSagaStep(saga, CreateSagaStep.STOCK_DECREASED);
 
-            if (Objects.nonNull(couponId)) {
-                // 4. 쿠폰 ID가 존재하면 쿠폰 API에 쿠폰 적용 요청
-                couponService.applyCoupon(sagaId, memberId, couponId);
+            if (couponId != null) {
+                // 5. 쿠폰 사용 중
+                sagaUpdateService.updateCreateSagaStep(saga, CreateSagaStep.COUPON_APPLYING);
 
-                // 5. 사가 상태 업데이트 (쿠폰 적용)
+                // 6. 쿠폰 ID가 존재하면 쿠폰 API에 쿠폰 적용 요청
+                couponService.applyCoupon(memberId, couponId);
+
+                // 7. 사가 상태 업데이트 (쿠폰 적용)
                 sagaUpdateService.updateCreateSagaStep(saga, CreateSagaStep.COUPON_APPLIED);
             }
 
             if (pointUsage > 0) {
-                // 6. 사용 포인트가 존재하면 멤버 API에 포인트 감소 요청
-                memberService.decreasePoint(sagaId, memberId, pointUsage);
+                // 8. 포인트 사용 중
+                sagaUpdateService.updateCreateSagaStep(saga, CreateSagaStep.POINT_USING);
 
-                // 7. 사가 상태 업데이트 (포인트 감소 성공)
+                // 9. 사용 포인트가 존재하면 멤버 API에 포인트 감소 요청
+                memberService.decreasePoint(memberId, pointUsage);
+
+                // 10. 사가 상태 업데이트 (포인트 감소 성공)
                 sagaUpdateService.updateCreateSagaStep(saga, CreateSagaStep.POINT_USED);
             }
 
-            // 8. 사가 성공
+            // 11. 사가 성공
             sagaUpdateService.updateCreateSagaStatus(saga, SagaStatus.COMPLETED);
 
         } catch (Exception e) {
-            // 9. 사가의 상태를 COMPENSATE로 설정 (보상 트랜잭션 진행 중 서버 오류에도 다시 동작하기 위함)
-            sagaUpdateService.updateCreateSagaStatus(saga, SagaStatus.COMPENSATED);
+            // 12. 보상 트랜잭션 시작
+            compensate(saga, order);
 
-            // 10. 보상 트랜잭션 시작
-            compensate(saga, memberId, quantityMap, couponId, pointUsage);
-
-            // 11. RestControllerAdvice에서 ErrorResponse 생성을 위한 예외 던지기
+            // 13. RestControllerAdvice에서 ErrorResponse 생성을 위한 예외 던지기
             throw new OrderCreateFailureException("주문 생성 실패" + order.getOrderId());
         }
     }
 
-    private void compensate(OrderCreateSaga saga, Long memberId, Map<Long, Integer> quantityMap, Long couponId, int pointUsage) {
-        // 1. 마지막으로 수행한 사가 단계 확인
+    public void compensate(OrderCreateSaga saga, Order order) {
+        // 이미 처리된 사가에 대해 재시도 하지 않음
+        if (saga.getOverallStatus() == SagaStatus.COMPLETED_COMPENSATED) {
+            return;
+        }
+
+        // 1. 사가의 상태를 COMPENSATE로 설정 (보상 트랜잭션 진행 중 서버 오류에도 다시 동작하기 위함)
+        sagaUpdateService.updateCreateSagaStatus(saga, SagaStatus.COMPENSATED);
+
+        int pointUsage = order.getOrderDetails().pointUsage();
+        Long memberId = order.getMemberId();
+        Long couponId = order.getOrderDetails().couponId();
+
+        Map<Long, Integer> quantityMap = order.getOrderItems().stream()
+                .collect(Collectors.toMap(OrderItem::getBookId, OrderItem::getQuantity));
+
+        // 2. 마지막으로 수행한 사가 단계 확인
         CreateSagaStep currentStep = saga.getLastCompletedStep();
 
         UUID sagaId = saga.getSagaId();
 
-        // 2. 역순으로 보상 트랜잭션 시작
-        if (currentStep == CreateSagaStep.POINT_USED) {
+        // 3. 역순으로 보상 트랜잭션 시작
+        if (currentStep == CreateSagaStep.POINT_USING || currentStep == CreateSagaStep.POINT_USED) {
             if (pointUsage > 0) {
-                memberService.increasePoint(sagaId, memberId, pointUsage);
+                memberService.increasePoint(memberId, pointUsage);
             }
             sagaUpdateService.updateCreateSagaStep(saga, CreateSagaStep.COUPON_APPLIED);
 
             currentStep = CreateSagaStep.COUPON_APPLIED;
         }
 
-        if (currentStep == CreateSagaStep.COUPON_APPLIED) {
+        if (currentStep == CreateSagaStep.COUPON_APPLYING || currentStep == CreateSagaStep.COUPON_APPLIED) {
             if (couponId != null) {
-                couponService.withdrawCoupon(sagaId, memberId, couponId);
+                couponService.withdrawCoupon(memberId, couponId);
             }
             sagaUpdateService.updateCreateSagaStep(saga, CreateSagaStep.STOCK_DECREASED);
 
             currentStep = CreateSagaStep.STOCK_DECREASED;
         }
 
-        if (currentStep == CreateSagaStep.STOCK_DECREASED) {
-            bookService.increaseStocks(sagaId, quantityMap);
+        if (currentStep == CreateSagaStep.STOCK_DECREASING || currentStep == CreateSagaStep.STOCK_DECREASED) {
+            bookService.increaseStocks(quantityMap);
         }
+        sagaUpdateService.updateCreateSagaStep(saga, CreateSagaStep.STARTED);
 
-        // 3. 보상 트랜잭션 완료 (COMPENSATE -> FAILED)
-        sagaUpdateService.updateCreateSagaStatus(saga, SagaStatus.FAILED);
+        // 4. 보상 트랜잭션 완료 (COMPENSATE -> COMPLETED_COMPENSATED)
+        sagaUpdateService.updateCreateSagaStatus(saga, SagaStatus.COMPLETED_COMPENSATED);
+
+        // 5. 사가 - 도메인 연결
+        orderCompensateService.compensateOrder(order, saga);
     }
 }

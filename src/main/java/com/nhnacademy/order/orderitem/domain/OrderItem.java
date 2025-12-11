@@ -1,5 +1,6 @@
 package com.nhnacademy.order.orderitem.domain;
 
+import com.nhnacademy.order.common.entity.BaseTimeEntity;
 import com.nhnacademy.order.order.domain.Order;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -13,12 +14,11 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class OrderItem {
+public class OrderItem extends BaseTimeEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "orderitem_id")
     private Long orderItemId;
-
 
     @Setter
     @ManyToOne(fetch = FetchType.LAZY)
@@ -28,9 +28,11 @@ public class OrderItem {
     @Column(name = "book_id")
     private Long bookId;
 
+    private String bookName;
+
     private int quantity;
 
-    private int price;
+    private Integer price;
 
     @Column(name = "shipping_date")
     private LocalDateTime shippingDate; // 출고일
@@ -40,23 +42,42 @@ public class OrderItem {
 
     @Setter
     @Column(name = "orderitem_status")
+    @Enumerated(value = EnumType.STRING)
     private OrderItemStatus orderItemStatus;
 
-    public static OrderItem create(Order order, Long bookId, int quantity, int price, int packagingPrice) {
+    public static OrderItem createInitial(Order order, Long bookId, int quantity, LocalDateTime shippingDate, int packagingPrice) {
         return new OrderItem(
-            null,
             order,
             bookId,
+            null,
             quantity,
-            price,
-            null, // 출고일 - 관리자가 설정
-            packagingPrice,
-            OrderItemStatus.PREPARING
+            null,
+            shippingDate,
+            packagingPrice
         );
+    }
+
+    private OrderItem(Order order, Long bookId, String bookName, int quantity, Integer price, LocalDateTime shippingDate, Integer packagingPrice) {
+        this.orderItemId = null;
+        this.order = order;
+        this.bookId = bookId;
+        this.bookName = bookName;
+        this.quantity = quantity;
+        this.price = price;
+        this.shippingDate = shippingDate;
+        this.packagingPrice = packagingPrice;
+        this.orderItemStatus = OrderItemStatus.PREPARING;
+    }
+
+    public void completeOrderItem(String bookName, int price) {
+        this.bookName = bookName;
+        this.price = price;
     }
 
     public void ship() {
         this.orderItemStatus = OrderItemStatus.SHIPPED;
-        this.shippingDate = LocalDateTime.now();
+        if (this.shippingDate == null) {
+            this.shippingDate = LocalDateTime.now();
+        }
     }
 }

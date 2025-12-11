@@ -3,19 +3,21 @@
 <head>
     <meta charset="utf-8" />
     <link rel="icon" href="https://static.toss.im/icons/png/4x/icon-toss-logo.png" />
+    <title>결제 성공 - NHN Books</title>
     <style>
         body { font-family: sans-serif; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
         .box_section { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 600px; text-align: center; }
-        .p-grid { display: flex; justify-content: space-between; margin-top: 15px; font-size: 16px; }
+        .p-grid { display: flex; justify-content: space-between; margin-top: 15px; font-size: 16px; border-bottom: 1px dashed #eee; padding-bottom: 10px; }
+        .p-grid:last-child { border-bottom: none; }
         .text--left { text-align: left; color: #666; font-weight: bold; }
         .text--right { text-align: right; color: #333; }
         h2 { margin-bottom: 30px; color: #333; }
-        .button { background-color: #3182f6; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 30px; text-decoration: none; display: inline-block; }
-        pre { background: #f1f3f5; padding: 15px; border-radius: 8px; text-align: left; overflow-x: auto; margin-top: 20px; font-size: 14px; }
-        #loading { margin-top: 20px; color: #666; font-weight: bold; }
-        .error-msg { color: #dc3545; font-weight: bold; margin-top: 20px; }
+        .button { background-color: #3182f6; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 30px; text-decoration: none; display: inline-block; transition: background 0.2s; }
+        .button:hover { background-color: #1b64da; }
+        pre { background: #f1f3f5; padding: 15px; border-radius: 8px; text-align: left; overflow-x: auto; margin-top: 20px; font-size: 12px; color: #555; }
+        #loading { margin-top: 20px; color: #666; font-weight: bold; font-size: 18px; }
+        .error-msg { color: #dc3545; font-weight: bold; margin-top: 20px; word-break: break-all; }
     </style>
-    <title>결제 성공 - NHN Books</title>
 </head>
 
 <body>
@@ -37,48 +39,45 @@
             <div class="text--right" id="orderId"></div>
         </div>
         <div class="p-grid">
-            <div class="text--left">결제 Key</div>
-            <div class="text--right" id="paymentKey"></div>
-        </div>
-        <div class="p-grid">
             <div class="text--left">승인일시</div>
             <div class="text--right" id="approvedAt"></div>
         </div>
+        <div class="p-grid">
+            <div class="text--left">상태</div>
+            <div class="text--right" id="status" style="color: #3182f6; font-weight: bold;"></div>
+        </div>
 
-        <a href="/" class="button">홈으로 돌아가기</a>
+        <a href="/checkout.html" class="button">처음으로 돌아가기</a>
     </div>
 </div>
 
-<div class="box_section" style="margin-top: 20px; text-align: left;">
-    <b>서버 응답 데이터 (Debug):</b>
+<div class="box_section" style="margin-top: 20px; text-align: left; background: #fff;">
+    <b style="color: #888;">📦 서버 응답 데이터 (Debug Log):</b>
     <div id="response"></div>
 </div>
 
 <script>
-    // 1. URL 쿼리 파라미터 가져오기
+    // 1. URL 쿼리 파라미터 파싱 (Toss Payments가 리다이렉트할 때 붙여준 값들)
     const urlParams = new URLSearchParams(window.location.search);
     const paymentKey = urlParams.get("paymentKey");
     const orderId = urlParams.get("orderId");
     const amount = urlParams.get("amount");
 
-    // 2. 백엔드 결제 승인 요청 함수
+    // 2. 최종 승인 요청 함수
     async function confirmPayment() {
         if (!paymentKey || !orderId || !amount) {
-            showError("결제 정보가 부족합니다.");
+            showError("결제 인증 정보가 부족합니다. (쿼리 파라미터 확인 필요)");
             return;
         }
 
         try {
-            // [핵심 수정] 백엔드 컨트롤러 호출 (@PostMapping "/payments/success")
-            const response = await fetch("/payments/success", {
+            // [API 호출] 우리가 만든 Spring Boot Controller로 최종 승인 요청
+            const response = await fetch("/api/payment/confirm", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                // [핵심 수정] DTO 필드명(orderNumber)에 맞춰서 JSON 생성
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     paymentKey: paymentKey,
-                    orderNumber: orderId, // URL의 orderId 값을 DTO의 orderNumber 필드에 매핑
+                    orderNumber: orderId, // Toss는 orderId를 주지만, 우리 백엔드 DTO는 orderNumber를 씀
                     amount: Number(amount)
                 })
             });
@@ -86,36 +85,51 @@
             const json = await response.json();
 
             if (!response.ok) {
-                throw { message: json.message || "결제 승인 실패", code: response.status, json: json };
+                // HTTP 상태 코드가 200이 아닐 경우 (400, 500 등)
+                // 에러 메시지 우선순위: JSON message -> "승인 실패"
+                const msg = json.message || "결제 승인 처리에 실패했습니다.";
+                throw { message: msg, json: json };
             }
 
-            return json; // 성공 데이터 반환
+            return json; // 성공 시 응답 데이터 반환
 
         } catch (err) {
-            console.error(err);
-            showError(`결제 승인 실패: ${err.message}`);
-            document.getElementById("response").innerHTML = `<pre style="color:red">${JSON.stringify(err.json || err, null, 4)}</pre>`;
+            console.error("Payment Confirmation Error:", err);
+
+            // 화면에 에러 메시지 표시
+            showError(`[승인 실패] ${err.message || "서버 통신 오류가 발생했습니다."}`);
+
+            // 디버그 영역에 상세 로그 표시
+            const errorDetails = err.json ? JSON.stringify(err.json, null, 4) : String(err);
+            document.getElementById("response").innerHTML = `<pre style="color:#dc3545">${errorDetails}</pre>`;
         }
     }
 
+    // 3. 에러 표시 함수
     function showError(msg) {
         document.getElementById("loading").style.display = "none";
         document.getElementById("error-view").style.display = "block";
         document.getElementById("error-view").textContent = msg;
     }
 
-    // 3. 실행 및 UI 업데이트
+    // 4. 페이지 로드 시 즉시 실행
     confirmPayment().then((data) => {
         if (data) {
+            // 로딩 숨김, 결과 표시
             document.getElementById("loading").style.display = "none";
             document.getElementById("result-view").style.display = "block";
 
-            // 화면 데이터 바인딩 (DTO 필드명 기준)
+            // PaymentResponse DTO 데이터 바인딩
+            // DTO 필드: orderNumber, totalAmount, approvedAt, status, receiptUrl 등
             document.getElementById("orderId").textContent = data.orderNumber;
             document.getElementById("amount").textContent = Number(data.totalAmount).toLocaleString() + "원";
-            document.getElementById("paymentKey").textContent = paymentKey;
-            document.getElementById("approvedAt").textContent = new Date(data.approvedAt).toLocaleString();
+            document.getElementById("status").textContent = data.status || "결제 완료";
 
+            // 날짜 포맷팅 (ISO 문자열 -> 보기 좋은 형태)
+            const dateStr = data.approvedAt || new Date().toISOString();
+            document.getElementById("approvedAt").textContent = new Date(dateStr).toLocaleString();
+
+            // 디버그 영역에 전체 데이터 표시
             document.getElementById("response").innerHTML = `<pre>${JSON.stringify(data, null, 4)}</pre>`;
         }
     });

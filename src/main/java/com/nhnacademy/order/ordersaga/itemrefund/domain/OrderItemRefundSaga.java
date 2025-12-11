@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.UUID;
+
 @Getter
 @NoArgsConstructor
 @Entity
@@ -18,13 +20,13 @@ public class OrderItemRefundSaga extends OrderSaga {
     @Enumerated(EnumType.STRING)
     private ItemRefundSagaStep lastCompletedStep;
 
-    private OrderItemRefundSaga(Long orderId, Long orderItemId) {
-        super(orderId);
+    private OrderItemRefundSaga(UUID sagaId, Long orderId, Long orderItemId) {
+        super(sagaId, orderId);
         this.orderItemId = orderItemId;
         this.lastCompletedStep = ItemRefundSagaStep.STARTED;
     }
 
-    public static OrderItemRefundSaga create(Long orderId, Long orderItemId) {
-        return new OrderItemRefundSaga(orderId, orderItemId);
+    public static OrderItemRefundSaga create(UUID sagaId, Long orderId, Long orderItemId) {
+        return new OrderItemRefundSaga(sagaId, orderId, orderItemId);
     }
 }

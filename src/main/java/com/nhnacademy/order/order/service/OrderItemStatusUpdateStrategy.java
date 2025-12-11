@@ -6,13 +6,22 @@ import com.nhnacademy.order.orderitem.domain.OrderItem;
 import com.nhnacademy.order.orderitem.domain.OrderItemStatus;
 import com.nhnacademy.order.orderitem.exception.OrderItemNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Set;
 
+enum Role {
+    ADMIN,  // 관리자만 가능
+    USER,   // 회원, 비회원 가능
+    DISABLE // 비활성 (현재 불가능)
+}
+
+@Slf4j
 @RequiredArgsConstructor
 public enum OrderItemStatusUpdateStrategy {
-    SHIPPED(OrderItemStatus.SHIPPED) {
+    SHIPPED(OrderItemStatus.SHIPPED, Role.ADMIN) {
         @Override
         public void updateStatus(Order order, Long orderItemId) {
             OrderItem orderItem = findOrderItem(order, orderItemId);
@@ -25,7 +34,19 @@ public enum OrderItemStatusUpdateStrategy {
             orderItem.ship();
         }
     },
-    REQUEST_RETURN_CHANGE_OF_MIND(OrderItemStatus.RETURN_REQUESTED_CHANGE_OF_MIND) {
+    DELIVERED(OrderItemStatus.DELIVERED, Role.ADMIN) {
+        @Override
+        public void updateStatus(Order order, Long orderItemId) {
+            OrderItem orderItem = findOrderItem(order, orderItemId);
+
+            if (!orderItem.getOrderItemStatus().equals(OrderItemStatus.SHIPPED)) {
+                throw new OrderStatusTransitionException("배송 중이 아닌 상품: " + orderItemId);
+            }
+
+            orderItem.setOrderItemStatus(OrderItemStatus.DELIVERED);
+        }
+    },
+    REQUEST_RETURN_CHANGE_OF_MIND(OrderItemStatus.RETURN_REQUESTED_CHANGE_OF_MIND, Role.USER) {
         @Override
         public void updateStatus(Order order, Long orderItemId) {
             OrderItem orderItem = findOrderItem(order, orderItemId);
@@ -43,7 +64,7 @@ public enum OrderItemStatusUpdateStrategy {
             orderItem.setOrderItemStatus(OrderItemStatus.RETURN_REQUESTED_CHANGE_OF_MIND);
         }
     },
-    REQUEST_RETURN_DAMAGED(OrderItemStatus.RETURN_REQUESTED_DAMAGED) {
+    REQUEST_RETURN_DAMAGED(OrderItemStatus.RETURN_REQUESTED_DAMAGED, Role.USER) {
         @Override
         public void updateStatus(Order order, Long orderItemId) {
             OrderItem orderItem = findOrderItem(order, orderItemId);
@@ -61,25 +82,26 @@ public enum OrderItemStatusUpdateStrategy {
             orderItem.setOrderItemStatus(OrderItemStatus.RETURN_REQUESTED_DAMAGED);
         }
     },
-    RETURNED(OrderItemStatus.RETURNED) {
+    RETURNED(OrderItemStatus.RETURNED, Role.ADMIN) {
         @Override
         public void updateStatus(Order order, Long orderItemId) {
-            OrderItem orderItem = findOrderItem(order, orderItemId);
-
-            // 반품 요청 상태가 아니면 반품 완료 불가
-            if (!orderItem.getOrderItemStatus().equals(OrderItemStatus.RETURN_REQUESTED_CHANGE_OF_MIND) &&
-            !orderItem.getOrderItemStatus().equals(OrderItemStatus.RETURN_REQUESTED_DAMAGED)) {
-                throw new OrderStatusTransitionException("반품 요청 상태가 아닌 상품: " + orderItemId);
-            }
-
-            // 상태 변경
-            orderItem.setOrderItemStatus(OrderItemStatus.RETURNED);
-
-            // 주문 전체 상태 업데이트
-            order.reflectItemStatusChange();
+            // 이제 반품은 사가에 의해서 이루어짐
+//            OrderItem orderItem = findOrderItem(order, orderItemId);
+//
+//            // 반품 요청 상태가 아니면 반품 완료 불가
+//            if (!orderItem.getOrderItemStatus().equals(OrderItemStatus.RETURN_REQUESTED_CHANGE_OF_MIND) &&
+//            !orderItem.getOrderItemStatus().equals(OrderItemStatus.RETURN_REQUESTED_DAMAGED)) {
+//                throw new OrderStatusTransitionException("반품 요청 상태가 아닌 상품: " + orderItemId);
+//            }
+//
+//            // 상태 변경
+//            orderItem.setOrderItemStatus(OrderItemStatus.RETURNED);
+//
+//            // 주문 전체 상태 업데이트
+//            order.reflectItemStatusChange();
         }
     },
-    CANCELED(OrderItemStatus.CANCELED) {
+    CANCELED(OrderItemStatus.CANCELED, Role.DISABLE) {
         @Override
         public void updateStatus(Order order, Long orderItemId) {
             OrderItem orderItem = findOrderItem(order, orderItemId);
@@ -96,7 +118,7 @@ public enum OrderItemStatusUpdateStrategy {
             order.reflectItemStatusChange();
         }
     },
-    CONFIRMED(OrderItemStatus.CONFIRMED) {
+    CONFIRMED(OrderItemStatus.CONFIRMED, Role.USER) {
         @Override
         public void updateStatus(Order order, Long orderItemId) {
             OrderItem orderItem = findOrderItem(order, orderItemId);
@@ -111,8 +133,25 @@ public enum OrderItemStatusUpdateStrategy {
     };
 
     private final OrderItemStatus targetStatus;
+    private final Role requiredRole;
 
     public abstract void updateStatus(Order order, Long orderItemId);
+
+    public boolean hasPermission(String userRole) {
+        // 비활성화된 기능
+        if (this.requiredRole == Role.DISABLE) {
+            log.info("비활성화된 기능 호출");
+            return false;
+        }
+
+        // 관리자만 가능
+        if (this.requiredRole == Role.ADMIN) {
+            return "ADMIN".equals(userRole);
+        }
+
+        // 그 외에는 모두 가능
+        return true;
+    }
 
     protected OrderItem findOrderItem(Order order, Long orderItemId) {
         return order.getOrderItems().stream()

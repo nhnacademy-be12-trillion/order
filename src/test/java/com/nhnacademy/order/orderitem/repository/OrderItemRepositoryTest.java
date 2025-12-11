@@ -43,9 +43,17 @@ class OrderItemRepositoryTest {
         entityManager.persist(order2);
 
         // 주문1에 아이템 2개, 주문2에 아이템 1개 추가
-        entityManager.persist(OrderItem.create(order1, 101L, 2, 15000, 500));
-        entityManager.persist(OrderItem.create(order1, 102L, 1, 25000, 0));
-        entityManager.persist(OrderItem.create(order2, 103L, 5, 10000, 0));
+        OrderItem item1 = OrderItem.createInitial(order1, 101L, 2, (LocalDateTime) null, 500);
+        item1.completeOrderItem("테스트 책 1", 15000);
+        entityManager.persist(item1);
+
+        OrderItem item2 = OrderItem.createInitial(order1, 102L, 1, (LocalDateTime) null, 0);
+        item2.completeOrderItem("테스트 책 2", 25000);
+        entityManager.persist(item2);
+
+        OrderItem item3 = OrderItem.createInitial(order2, 103L, 5, (LocalDateTime) null, 0);
+        item3.completeOrderItem("테스트 책 3", 10000);
+        entityManager.persist(item3);
 
         entityManager.flush();
         entityManager.clear();

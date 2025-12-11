@@ -1,11 +1,12 @@
 package com.nhnacademy.order.client;
 
 import com.nhnacademy.order.client.dto.PointUsageRequest;
+import com.nhnacademy.order.common.config.FeignClientConfig;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-@FeignClient(name = "member-service")
+@FeignClient(name = "member-service", configuration = FeignClientConfig.class)
 public interface MemberClient {
     @PatchMapping("/api/point/1")
     void increasePoint(@RequestBody PointUsageRequest request);

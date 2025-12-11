@@ -4,11 +4,9 @@ import com.nhnacademy.order.order.domain.Order;
 import com.nhnacademy.order.order.domain.OrderDetails;
 import com.nhnacademy.order.order.domain.OrderStatus;
 import com.nhnacademy.order.order.repository.OrderRepository;
-import com.nhnacademy.order.order.service.OrderService;
-import com.nhnacademy.payment.domain.Payment;
-import com.nhnacademy.payment.domain.PaymentStatus;
-import com.nhnacademy.payment.dto.response.PaymentResponse;
 import com.nhnacademy.payment.dto.response.TossPaymentResponseDto;
+import com.nhnacademy.payment.entity.Payment;
+import com.nhnacademy.payment.entity.PaymentStatus;
 import com.nhnacademy.payment.exception.PaymentNotFoundException;
 import com.nhnacademy.payment.exception.PaymentStateConflictException;
 import com.nhnacademy.payment.repository.PaymentRepository;
@@ -25,13 +23,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.BDDMockito.given;
-
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -91,12 +88,13 @@ class PaymentServiceImplTest {
                 }
         );
 
-        PaymentResponse result = paymentService.savePayment(response, order);
+        Payment result = paymentService.savePayment(response, order);
 
         // then
         assertNotNull(result);
-        assertEquals("DONE", result.status());
-        assertEquals(50000, result.totalAmount());
+        assertEquals(PaymentStatus.DONE, result.getPaymentStatus());
+        assertEquals(50000, result.getTotalAmount());
+        assertEquals(50000, result.getBalanceAmount());
 
         // 주문 상태 변경 확인
         assertEquals(OrderStatus.COMPLETED, order.getOrderStatus());
@@ -118,7 +116,7 @@ class PaymentServiceImplTest {
 
         Payment findPayment = Payment.builder()
                 .paymentKey("test_paymentKey")
-                .paymentStatus(com.nhnacademy.payment.domain.PaymentStatus.DONE)
+                .paymentStatus(com.nhnacademy.payment.entity.PaymentStatus.DONE)
                 .order(order)
                 .totalAmount(50000)
                 .build();
@@ -148,7 +146,7 @@ class PaymentServiceImplTest {
 
         Payment findPayment = Payment.builder()
                 .paymentKey("test_paymentKey")
-                .paymentStatus(com.nhnacademy.payment.domain.PaymentStatus.CANCELED)
+                .paymentStatus(com.nhnacademy.payment.entity.PaymentStatus.CANCELED)
                 .order(order)
                 .build();
 
@@ -156,7 +154,7 @@ class PaymentServiceImplTest {
 
         assertThrows(PaymentStateConflictException.class,()->paymentService.updatePaymentCanceledStatus(mockPayment,cancelAmount));
 
-        assertEquals(com.nhnacademy.payment.domain.PaymentStatus.CANCELED, findPayment.getPaymentStatus());
+        assertEquals(com.nhnacademy.payment.entity.PaymentStatus.CANCELED, findPayment.getPaymentStatus());
 
     }
 
@@ -207,7 +205,7 @@ class PaymentServiceImplTest {
         String orderNumber = "testOrderNumber";
         Payment payment = Payment.builder()
                 .paymentKey("test_paymentKey")
-                .paymentStatus(com.nhnacademy.payment.domain.PaymentStatus.DONE)
+                .paymentStatus(com.nhnacademy.payment.entity.PaymentStatus.DONE)
                 .order(order)
                 .build();
         given(paymentRepository.findByOrder_OrderNumber(orderNumber)).willReturn(payment);
@@ -224,7 +222,7 @@ class PaymentServiceImplTest {
 
         Payment payment = Payment.builder()
                 .paymentKey("test_paymentKey")
-                .paymentStatus(com.nhnacademy.payment.domain.PaymentStatus.DONE)
+                .paymentStatus(com.nhnacademy.payment.entity.PaymentStatus.DONE)
                 .order(order)
                 .build();
 
@@ -232,11 +230,11 @@ class PaymentServiceImplTest {
 
         given(paymentRepository.findById(paymentId)).willReturn(Optional.of(payment));
 
-        PaymentResponse result = paymentService.getPaymentById(paymentId);
-
+        Payment result = paymentService.getPaymentById(paymentId);
         assertNotNull(result);
-        assertEquals("test_paymentKey",result.paymentKey());
-        assertEquals(1L,result.paymentId());
+        // Entity Getter 사용
+        assertEquals("test_paymentKey", result.getPaymentKey());
+        assertEquals(1L, result.getPaymentId());
     }
 
     @Test
@@ -248,7 +246,7 @@ class PaymentServiceImplTest {
         // setup()에서 이미 생성된 order(mockOrderDetails 포함)를 사용하여 Payment 객체 생성
         Payment payment = Payment.builder()
                 .paymentKey("test_paymentKey")
-                .paymentStatus(com.nhnacademy.payment.domain.PaymentStatus.DONE)
+                .paymentStatus(com.nhnacademy.payment.entity.PaymentStatus.DONE)
                 .order(order) // [중요] setup에서 만든 order 사용
                 .totalAmount(50000)
                 .build();
@@ -261,13 +259,15 @@ class PaymentServiceImplTest {
         given(paymentRepository.findAll(pageable)).willReturn(paymentPage);
 
         // when
-        Page<PaymentResponse> result = paymentService.getAllPayments(pageable);
+        Page<Payment> result = paymentService.getAllPayments(pageable);
 
         // then
         assertNotNull(result);
-        assertEquals(1, result.getTotalElements()); // 요소 개수 확인
-        assertEquals("test_paymentKey", result.getContent().get(0).paymentKey()); // 변환된 DTO 값 확인
-        assertEquals(50000, result.getContent().get(0).totalAmount()); // 금액 확인
+        assertEquals(1, result.getTotalElements());
+
+        // Entity Getter 사용
+        assertEquals("test_paymentKey", result.getContent().get(0).getPaymentKey());
+        assertEquals(50000, result.getContent().get(0).getTotalAmount());
 
         verify(paymentRepository, times(1)).findAll(pageable);
     }

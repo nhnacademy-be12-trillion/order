@@ -1,10 +1,9 @@
 package com.nhnacademy.payment.controller;
 
-import com.nhnacademy.payment.domain.Payment;
-import com.nhnacademy.payment.domain.PaymentStatus;
 import com.nhnacademy.payment.dto.reqeust.PaymentCancelRequestDto;
 import com.nhnacademy.payment.dto.reqeust.PaymentRequestDto;
 import com.nhnacademy.payment.dto.response.PaymentResponse;
+import com.nhnacademy.payment.entity.Payment;
 import com.nhnacademy.payment.service.PaymentService;
 import com.nhnacademy.payment.service.impl.PaymentFlowService;
 import lombok.RequiredArgsConstructor;
@@ -13,29 +12,32 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/payments")
+@RequestMapping("/api/payment")
 public class PaymentController {
     private final PaymentService paymentService;
     private final PaymentFlowService paymentFlowService;
 
 
-    @PostMapping("/success")
-    public ResponseEntity<?> createPaymentSuccess(@RequestBody PaymentRequestDto request) {
+    // 사용자 결제 승인
+    @PostMapping("/confirm")
+    public ResponseEntity<?> confirmPayment(@RequestBody PaymentRequestDto request) {
 
-        PaymentResponse payment = paymentFlowService.confirmPayment(request);
+        Payment payment = paymentFlowService.confirmPayment(request);
 
-        return ResponseEntity.ok(payment);
+        return ResponseEntity.ok(PaymentResponse.from(payment));
     }
 
-    @GetMapping("/{paymentId}")
-    public ResponseEntity<?> getPaymentById(@PathVariable("paymentId") Long paymentId) {
-        return ResponseEntity.ok(paymentService.getPaymentById(paymentId));
+    // 사용자 orderNumber로 조회
+    @GetMapping("/{orderNumber}")
+    public ResponseEntity<?> getPayment(@PathVariable String orderNumber) {
+        Payment payment = paymentService.getPaymentByOrderNumber(orderNumber);
+        return ResponseEntity.ok(PaymentResponse.from(payment));
     }
 
+
+    //그럼 여기는? 취소 요청만? 배송 전의 상태만
     @PostMapping("/cancel")
     public ResponseEntity<?> cancelPayment(@RequestBody PaymentCancelRequestDto request) {
         paymentFlowService.cancelPayment(
@@ -47,9 +49,13 @@ public class PaymentController {
         return ResponseEntity.ok("결제 취소 요청이 정상적으로 처리되었습니다.");
     }
 
+
+    //사용자의 결제 전체 내역을 보게 해줌
     @GetMapping
     public ResponseEntity<Page<PaymentResponse>> getPayments(Pageable pageable) {
-        return ResponseEntity.ok(paymentService.getAllPayments(pageable));
+        Page<Payment> payments = paymentService.getAllPayments(pageable);
+        Page<PaymentResponse> responses = payments.map(PaymentResponse::from);
+        return ResponseEntity.ok(responses);
     }
 
  }

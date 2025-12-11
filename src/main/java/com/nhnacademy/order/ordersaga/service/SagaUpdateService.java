@@ -1,14 +1,14 @@
 package com.nhnacademy.order.ordersaga.service;
 
-import com.nhnacademy.order.ordersaga.cancelation.repository.OrderCancelSagaRepository;
+import com.nhnacademy.order.ordersaga.cancellation.repository.OrderCancelSagaRepository;
 import com.nhnacademy.order.ordersaga.creation.repository.OrderCreateSagaRepository;
 import com.nhnacademy.order.ordersaga.domain.OrderSaga;
 import com.nhnacademy.order.ordersaga.itemrefund.domain.NonMemberOrderItemRefundSaga;
 import com.nhnacademy.order.ordersaga.itemrefund.domain.NonMemberRefundSagaStep;
 import com.nhnacademy.order.ordersaga.itemrefund.repository.NonMemberOrderItemRefundSagaRepository;
 import com.nhnacademy.order.ordersaga.itemrefund.repository.OrderItemRefundSagaRepository;
-import com.nhnacademy.order.ordersaga.cancelation.domain.CancelSagaStep;
-import com.nhnacademy.order.ordersaga.cancelation.domain.OrderCancelSaga;
+import com.nhnacademy.order.ordersaga.cancellation.domain.CancelSagaStep;
+import com.nhnacademy.order.ordersaga.cancellation.domain.OrderCancelSaga;
 import com.nhnacademy.order.ordersaga.creation.domain.CreateSagaStep;
 import com.nhnacademy.order.ordersaga.creation.domain.OrderCreateSaga;
 import com.nhnacademy.order.ordersaga.domain.SagaStatus;

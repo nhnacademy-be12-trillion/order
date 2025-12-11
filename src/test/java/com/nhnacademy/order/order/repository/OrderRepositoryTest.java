@@ -1,7 +1,7 @@
 package com.nhnacademy.order.order.repository;
 
 import com.nhnacademy.order.order.domain.*;
-import com.nhnacademy.order.order.dto.NonMemberBaseResponse;
+import com.nhnacademy.order.order.dto.NonMemberOrderBaseResponse;
 import com.nhnacademy.order.order.dto.OrderBaseResponse;
 import com.nhnacademy.order.orderitem.domain.OrderItem;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +12,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -19,6 +20,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
+@TestPropertySource(properties = "spring.sql.init.mode=never")
 class OrderRepositoryTest {
 
     @Autowired
@@ -50,8 +52,13 @@ class OrderRepositoryTest {
         entityManager.persist(order3);
 
         // OrderItem 객체들 생성 및 저장 (order1에 연결)
-        order1Item1 = OrderItem.create(order1, 101L, 2, 15000, 0);
-        OrderItem order1Item2 = OrderItem.create(order1, 102L, 1, 25000, 0);
+        order1Item1 = OrderItem.createInitial(order1, 101L, 2, (LocalDateTime) null, 0);
+        order1Item1.completeOrderItem("테스트 책 101", 15000);
+        entityManager.persist(order1Item1);
+
+        OrderItem order1Item2 = OrderItem.createInitial(order1, 102L, 1, (LocalDateTime) null, 0);
+        order1Item2.completeOrderItem("테스트 책 102", 25000);
+        entityManager.persist(order1Item2);
 
         entityManager.persist(order1Item1);
         entityManager.persist(order1Item2);
@@ -186,11 +193,11 @@ class OrderRepositoryTest {
         entityManager.clear();
 
         // when
-        Optional<NonMemberBaseResponse> resultOptional = orderRepository.findNonMemberOrderByOrderNumber(nonMemberOrder.getOrderNumber());
+        Optional<NonMemberOrderBaseResponse> resultOptional = orderRepository.findNonMemberOrderByOrderNumber(nonMemberOrder.getOrderNumber());
 
         // then
         assertThat(resultOptional).isPresent();
-        NonMemberBaseResponse response = resultOptional.get();
+        NonMemberOrderBaseResponse response = resultOptional.get();
         assertThat(response.orderNumber()).isEqualTo(nonMemberOrder.getOrderNumber());
         assertThat(response.nonMemberPassword()).isEqualTo("encrypted-password");
     }
@@ -202,7 +209,7 @@ class OrderRepositoryTest {
         String nonExistentOrderNumber = "NonExistent-123";
 
         // when
-        Optional<NonMemberBaseResponse> resultOptional = orderRepository.findNonMemberOrderByOrderNumber(nonExistentOrderNumber);
+        Optional<NonMemberOrderBaseResponse> resultOptional = orderRepository.findNonMemberOrderByOrderNumber(nonExistentOrderNumber);
 
         // then
         assertThat(resultOptional).isEmpty();

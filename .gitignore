@@ -1,0 +1,35 @@
+# Build artifacts
+target/
+
+# IDE files
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Maven Wrapper
+# If you want to use a specific version of Maven for this project,
+# consider committing the .mvn/ directory, but remove this line.
+.mvn/
+
+# Log files
+*.log
+
+# Temporary files (e.g. from vim)
+*.swp
+*.swo
+*.bak
+
+# OS-specific
+.DS_Store
+
+# Java HotSpot VM error logs
+hs_err_pid*
+
+# Maven release plugin files
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties

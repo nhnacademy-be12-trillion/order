@@ -85,8 +85,8 @@ POST http://{{hostname}}/api/orders/non-members/
 Content-Type: application/json
 
 {
-  "orderNumber": "ORD-3a6e29ec-f84c-491d-a13e-8aeeb90ffa58",
-  "nonMemberPassword": "nonmemberpass"
+  "orderNumber": "ORD-SAMPLE-002",
+  "nonMemberPassword": "1234"
 }
 
 ### 주문 상품 상태 변경: 주문 취소 (회원)
@@ -99,16 +99,40 @@ X-USER-ROLE: MEMBER
   "status": "CANCELED"
 }
 
+### 주문 상품 상태 변경: 배송 중 (관리자)
+PATCH http://{{hostname}}/api/orders/1/items/1
+X-USER-ID: 1
+X-USER-ROLE: ADMIN
+Content-Type: application/json
+
+{
+  "status": "SHIPPED"
+}
+
+### 주문 상품 상태 변경: 배송 완료 (관리자)
+PATCH http://{{hostname}}/api/orders/1/items/1
+X-USER-ID: 1
+X-USER-ROLE: ADMIN
+Content-Type: application/json
+
+{
+  "status": "DELIVERED"
+}
+
 ### 주문 상품 상태 변경: 반품 요청 (단순 변심) (회원)
 PATCH http://{{hostname}}/api/orders/1/items/1
+X-USER-ID: 1
+X-USER-ROLE: MEMBER
 Content-Type: application/json
 
 {
   "status": "RETURN_REQUESTED_CHANGE_OF_MIND"
 }
 
-### 주문 상품 상태 변경: 반품 완료 (회원)
+### 주문 상품 상태 변경: 반품 완료 (관리자)
 PATCH http://{{hostname}}/api/orders/1/items/1
+X-USER-ID: 1
+X-USER-ROLE: ADMIN
 Content-Type: application/json
 
 {
@@ -117,17 +141,19 @@ Content-Type: application/json
 
 ### 주문 상품 상태 변경: 구매 확정 (회원)
 PATCH http://{{hostname}}/api/orders/1/items/1
+X-USER-ID: 1
+X-USER-ROLE: MEMBER
 Content-Type: application/json
 
 {
   "status": "CONFIRMED"
 }
 
-### 주문 상품 상태 변경: 주문 취소 (비회원)
-PATCH http://{{hostname}}/api/orders/non-members/1/items/1
+### 주문 상품 상태 변경: 반품 요청 (비회원)
+PATCH http://{{hostname}}/api/orders/non-members/2/items/3
 Content-Type: application/json
 
 {
-  "nonMemberPassword": "nonmemberpass",
-  "status": "CANCELED"
+  "nonMemberPassword": "1234",
+  "status": "RETURN_REQUESTED_CHANGE_OF_MIND"
 }
