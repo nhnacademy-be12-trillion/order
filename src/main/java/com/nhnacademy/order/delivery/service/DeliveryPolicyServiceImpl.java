@@ -29,14 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeliveryPolicyServiceImpl implements DeliveryPolicyService {
     private final DeliveryPolicyRepository deliveryPolicyRepository;
 
-    private DeliveryPolicy getPolicy() {
-        return deliveryPolicyRepository.findFirstByOrderByDeliveryPolicyIdAsc()
-                .orElseThrow(() -> new PolicyNotConfiguredException("배송 정책이 설정되지 않음"));
-    }
-
     @Transactional(readOnly = true)
     public DeliveryPolicyResponse getDeliveryPolicy() {
-        DeliveryPolicy deliveryPolicy = getPolicy();
+        DeliveryPolicy deliveryPolicy = deliveryPolicyRepository.findFirstByOrderByDeliveryPolicyIdAsc()
+                .orElseThrow(() -> new PolicyNotConfiguredException("배송 정책이 설정되지 않음"));
 
         return DeliveryPolicyResponse.create(deliveryPolicy);
     }
@@ -44,7 +40,9 @@ public class DeliveryPolicyServiceImpl implements DeliveryPolicyService {
     @Transactional
     @CheckAuth(role = AuthRole.ADMIN)
     public void updateDeliveryPolicy(UserInfo userInfo, DeliveryPolicyUpdateRequest request) {
-        DeliveryPolicy deliveryPolicy = getPolicy();
+        DeliveryPolicy deliveryPolicy = deliveryPolicyRepository.findFirstByOrderByDeliveryPolicyIdAsc()
+                        .orElseGet(() -> DeliveryPolicy.create(request.deliveryPolicyFee(), request.deliveryPolicyThreshold()));
+
 
         deliveryPolicy.update(request.deliveryPolicyFee(), request.deliveryPolicyThreshold());
 

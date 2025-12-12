@@ -50,9 +50,10 @@ public class OrderFinalizerService {
                     BookResponse bookResponse = bookResponseMap.get(orderItem.getBookId());
 
                     String bookName = bookResponse.bookName();
+                    String bookImage = bookResponse.imageUrl();
                     int price = bookResponse.price();
 
-                    orderItem.completeOrderItem(bookName, price);
+                    orderItem.completeOrderItem(bookName, bookImage, price);
                 });
 
         // 순수 금액 계산 (도서 * 재고 + 포장비)

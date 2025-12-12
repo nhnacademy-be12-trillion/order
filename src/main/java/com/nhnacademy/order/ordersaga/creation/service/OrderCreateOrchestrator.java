@@ -31,8 +31,6 @@ public class OrderCreateOrchestrator {
         // 1. 사가 시작
         sagaUpdateService.updateCreateSagaStep(saga, CreateSagaStep.STARTED);
 
-        UUID sagaId = saga.getSagaId();
-
         Long memberId = order.getMemberId();
 
         int pointUsage = order.getOrderDetails().pointUsage();
@@ -106,12 +104,10 @@ public class OrderCreateOrchestrator {
         // 2. 마지막으로 수행한 사가 단계 확인
         CreateSagaStep currentStep = saga.getLastCompletedStep();
 
-        UUID sagaId = saga.getSagaId();
-
         // 3. 역순으로 보상 트랜잭션 시작
         if (currentStep == CreateSagaStep.POINT_USING || currentStep == CreateSagaStep.POINT_USED) {
             if (pointUsage > 0) {
-                memberService.increasePoint(memberId, pointUsage);
+                memberService.rollbackPoint(memberId, pointUsage);
             }
             sagaUpdateService.updateCreateSagaStep(saga, CreateSagaStep.COUPON_APPLIED);
 
@@ -128,7 +124,7 @@ public class OrderCreateOrchestrator {
         }
 
         if (currentStep == CreateSagaStep.STOCK_DECREASING || currentStep == CreateSagaStep.STOCK_DECREASED) {
-            bookService.increaseStocks(quantityMap);
+            bookService.rollbackStocks(quantityMap);
         }
         sagaUpdateService.updateCreateSagaStep(saga, CreateSagaStep.STARTED);
 

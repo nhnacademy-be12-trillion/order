@@ -109,9 +109,21 @@ public class OrderServiceImpl implements OrderService {
     @CheckAuth(role = AuthRole.ADMIN)
     @Transactional(readOnly = true)
     public Page<OrderResponse> findAllOrders(UserInfo userInfo, Pageable pageable) {
-        Page<Order> orders = orderRepository.findAll(pageable);
+        Page<OrderBaseResponse> orderBaseResponses = orderRepository.findAllBaseOrder(pageable);
 
-        return orders.map(OrderResponse::create);
+        List<Long> orderIds = orderBaseResponses.stream()
+                .map(OrderBaseResponse::orderId)
+                .toList();
+
+        Map<Long, List<OrderItemResponse>> orderItemResponses = orderItemRepository.findAllByOrderIds(orderIds).stream()
+                .collect(Collectors.groupingBy(OrderItemResponse::orderId));
+
+
+        return orderBaseResponses.map(orderBaseResponse -> {
+            List<OrderItemResponse> orderItems = orderItemResponses.getOrDefault(orderBaseResponse.orderId(), Collections.emptyList());
+
+            return OrderResponse.create(orderBaseResponse, orderItems);
+        });
     }
 
     // 주문 생성
@@ -201,24 +213,28 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @CheckAuth(role = AuthRole.MEMBER, checkOrderOwner = true)
     @Transactional
-    public void patchOrderItemStatus(UserInfo userInfo, Long orderId, Long orderItemId, OrderItemStatusPatchRequest request) {
+    public OrderResponse patchOrderItemStatus(UserInfo userInfo, Long orderId, Long orderItemId, OrderItemStatusPatchRequest request) {
 
         Order order = orderRepository.findOrderWithItemsByOrderId(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(ORDER_NOT_FOUND_MESSAGE + orderId));
 
         updateOrderItemStatus(userInfo, order, orderItemId, request.status());
+
+        return OrderResponse.create(order);
     }
 
     // 비회원 주문 상품 상태 변경 (주문 취소, 환불 요청)
     @Override
     @Transactional
-    public void patchOrderItemStatusForNonMember(Long orderId, Long orderItemId, NonMemberOrderItemStatusPatchRequest request) {
+    public OrderResponse patchOrderItemStatusForNonMember(Long orderId, Long orderItemId, NonMemberOrderItemStatusPatchRequest request) {
         Order order = orderRepository.findOrderWithItemsByOrderId(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(ORDER_NOT_FOUND_MESSAGE + orderId));
 
         nonMemberPasswordCheck(request.nonMemberPassword(), order.getNonMemberPassword());
 
         updateOrderItemStatus(null, order, orderItemId, request.status());
+
+        return OrderResponse.create(order);
     }
 
     // 주문 번호로 주문 찾기

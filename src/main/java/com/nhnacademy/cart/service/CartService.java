@@ -2,6 +2,7 @@ package com.nhnacademy.cart.service;
 
 import com.nhnacademy.cart.dto.CartDto;
 import com.nhnacademy.cart.dto.CartHolder;
+import com.nhnacademy.cart.dto.CartSummaryDto;
 
 import java.util.List;
 
@@ -35,10 +36,10 @@ public interface CartService {
     List<CartDto> getCartItems(CartHolder holder);
 
     /**
-     * [상품 종류 수 조회]
-     * - 장바구니 아이템들의 종류 개수를 계산
+     * [장바구니 요약 정보 조회]
+     * - 상품의 종류(Line) 수와 전체 수량(Total Quantity)을 포함한 요약 정보를 반환합니다.
      */
-    long countCartItems(CartHolder holder);
+    CartSummaryDto getCartSummary(CartHolder holder);
 
     // --------------------------------------------------------
 

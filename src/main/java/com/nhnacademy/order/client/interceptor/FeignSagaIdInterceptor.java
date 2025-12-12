@@ -10,7 +10,7 @@
  * +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
  */
 
-package com.nhnacademy.order.common.interceptor;
+package com.nhnacademy.order.client.interceptor;
 
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
@@ -22,6 +22,7 @@ public class FeignSagaIdInterceptor implements RequestInterceptor {
     public static final String SAGA_ID_HEADER = "X-SAGA-ID";
     public static final String SAGA_ID_MDC_KEY = "sagaId";
 
+    // 요청 헤더에 사가 ID 부착
     @Override
     public void apply(RequestTemplate requestTemplate) {
         String sagaId = MDC.get(SAGA_ID_MDC_KEY);

@@ -60,7 +60,7 @@ class OrderServiceFindTest {
                 new ReceiverInfo("이순신", "010-9876-5432", "서울")
         );
         List<OrderItemResponse> dummyItems = List.of(
-                new OrderItemResponse(1L, orderId, 1L, "테스트 책 이름", 2, 20000, 500, OrderItemStatus.SHIPPED)
+                new OrderItemResponse(1L, orderId, 1L, "테스트 책 이름", null, 2, 20000, 500, OrderItemStatus.SHIPPED)
         );
 
         when(orderRepository.findBaseOrderById(orderId)).thenReturn(Optional.of(dummyBaseResponse));

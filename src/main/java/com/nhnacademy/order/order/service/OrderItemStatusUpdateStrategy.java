@@ -43,7 +43,7 @@ public enum OrderItemStatusUpdateStrategy {
                 throw new OrderStatusTransitionException("배송 중이 아닌 상품: " + orderItemId);
             }
 
-            orderItem.setOrderItemStatus(OrderItemStatus.DELIVERED);
+            orderItem.delivered();
         }
     },
     REQUEST_RETURN_CHANGE_OF_MIND(OrderItemStatus.RETURN_REQUESTED_CHANGE_OF_MIND, Role.USER) {

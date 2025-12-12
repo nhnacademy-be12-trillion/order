@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -46,6 +45,12 @@ public class BookService {
         bookClient.increaseStocks(new BookStocksRequest(quantityMap));
     }
 
+    @CircuitBreaker(name = "book-service", fallbackMethod = "fallbackRollbackStocks")
+    @Retry(name = "book-service")
+    public void rollbackStocks(Map<Long, Integer> quantityMap) {
+        bookClient.rollbackStocks(new BookStocksRequest(quantityMap));
+    }
+
     private Map<Long, BookResponse> fallbackGetBookInfos(List<Long> bookIds, Throwable throwable) {
         return fallbackHandler.handle(SERVICE_NAME, "도서 정보 조회", throwable);
     }
@@ -56,5 +61,9 @@ public class BookService {
 
     private void fallbackIncreaseStocks(Map<Long, Integer> quantityMap, Throwable throwable) {
         fallbackHandler.handle(SERVICE_NAME, "재고 증가", throwable);
+    }
+
+    private void fallbackRollbackStocks(Map<Long, Integer> quantityMap, Throwable throwable) {
+        fallbackHandler.handle(SERVICE_NAME, "재고 복구", throwable);
     }
 }

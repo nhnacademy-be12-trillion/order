@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nhnacademy.cart.common.annotation.GuestOnly;
 import com.nhnacademy.cart.dto.CartDto;
 import com.nhnacademy.cart.dto.CartHolder;
+import com.nhnacademy.cart.dto.CartSummaryDto;
 import com.nhnacademy.cart.service.CartService;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -105,14 +106,12 @@ class CartControllerTest {
     void addCartItem() throws Exception {
         // given
         CartCreateRequestDto request = new CartCreateRequestDto(100L, 2);
-        given(cartService.countCartItems(any(CartHolder.class))).willReturn(5L);
 
         // when & then
         mockMvc.perform(post("/api/carts")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
-                .andExpect(content().string("5")); // 총 개수 반환 확인
+                .andExpect(status().isNoContent());
 
         // Verify: Service DTO 변환 및 호출 검증
         verify(cartService).addCartItem(eq(memberHolder), any(CartDto.class));
@@ -180,17 +179,20 @@ class CartControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/carts/count : 장바구니 개수 조회 (200 OK)")
-    void countCartItems() throws Exception {
+    @DisplayName("GET /api/carts/summary : 장바구니 요약정보 조회 (200 OK)")
+    void getCartSummary() throws Exception {
         // given
-        given(cartService.countCartItems(memberHolder)).willReturn(10L);
+        CartSummaryDto summary = new CartSummaryDto(5,5);
+        given(cartService.getCartSummary(memberHolder)).willReturn(summary);
 
         // when & then
-        mockMvc.perform(get("/api/carts/count"))
+        mockMvc.perform(get("/api/carts/summary"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("10"));
+                .andExpect(jsonPath("$.lineCount").value(5))
+                .andExpect(jsonPath("$.totalQuantity").value(5));
 
-        verify(cartService).countCartItems(memberHolder);
+
+        verify(cartService).getCartSummary(memberHolder);
     }
 
     @Test

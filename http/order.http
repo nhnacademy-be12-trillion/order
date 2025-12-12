@@ -20,13 +20,12 @@ X-USER-ROLE: MEMBER
   "nonMemberPassword": null,
 
   "pointUsage": 1000,
-  "couponId": null,
+  "couponId": 1,
 
   "orderItems": [
     {
       "bookId": 1,
       "quantity": 2,
-      "couponId": 1,
       "packagingId": 2
     },
     {
@@ -90,7 +89,7 @@ Content-Type: application/json
 }
 
 ### 주문 상품 상태 변경: 주문 취소 (회원)
-PATCH http://{{hostname}}/api/orders/1/items/1
+DELETE http://{{hostname}}/api/orders/1
 Content-Type: application/json
 X-USER-ID: 1
 X-USER-ROLE: MEMBER
@@ -100,7 +99,7 @@ X-USER-ROLE: MEMBER
 }
 
 ### 주문 상품 상태 변경: 배송 중 (관리자)
-PATCH http://{{hostname}}/api/orders/2/items/3
+PATCH http://{{hostname}}/api/orders/1/items/1
 X-USER-ID: 1
 X-USER-ROLE: ADMIN
 Content-Type: application/json
@@ -110,7 +109,7 @@ Content-Type: application/json
 }
 
 ### 주문 상품 상태 변경: 배송 완료 (관리자)
-PATCH http://{{hostname}}/api/orders/2/items/3
+PATCH http://{{hostname}}/api/orders/1/items/1
 X-USER-ID: 1
 X-USER-ROLE: ADMIN
 Content-Type: application/json

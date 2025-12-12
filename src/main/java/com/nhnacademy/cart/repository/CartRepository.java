@@ -2,6 +2,7 @@ package com.nhnacademy.cart.repository;
 
 import com.nhnacademy.cart.dto.CartDto;
 import com.nhnacademy.cart.dto.CartHolder;
+import com.nhnacademy.cart.dto.CartSummaryDto;
 
 import java.util.List;
 import java.util.Optional;
@@ -67,10 +68,16 @@ public interface CartRepository {
     List<CartDto> findAll(CartHolder holder);
 
     /**
-     * [담긴 상품 개수 조회] (헤더 배지용)
+     * [담긴 상품 종류 조회]
      * - Strategy: Redis Priority
-     * - 모든 페이지에서 호출되므로 DB 부하 방지를 위해 Redis 캐시를 최우선으로 신뢰
+     *  Redis 캐시를 최우선으로 신뢰
      * - ... 이미, 다른 로직에서 상당한 정합성을 보장
      */
-    long count(CartHolder holder);
+    long countDistinctCartItem(CartHolder holder);
+
+    /**
+     * [담긴 상품 종류 + 담긴 상품 총 개수, 요약정보 조회]
+     * Redis 캐시를 최우선으로 신뢰
+     */
+    CartSummaryDto getSummary(CartHolder holder);
 }

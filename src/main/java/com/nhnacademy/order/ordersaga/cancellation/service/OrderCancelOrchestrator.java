@@ -36,8 +36,6 @@ public class OrderCancelOrchestrator {
         // 1. 사가 시작 (사가 생성과 동시에 주문 상태를 '주문 취소 중'으로 변경 -> 사용자 경험 향상)
         OrderCancelSaga saga = orderCancelService.cancelStart(order);
 
-        UUID sagaId = saga.getSagaId();
-
         int pointUsage = order.getOrderDetails().pointUsage();
 
         Long couponId = order.getOrderDetails().couponId();
@@ -68,6 +66,7 @@ public class OrderCancelOrchestrator {
 
             // 5. 도서 API에 재고 증가 요청
             bookService.increaseStocks(quantityMap);
+            sagaUpdateService.updateCancelSagaStep(saga, CancelSagaStep.STOCK_INCREASED);
 
             // 6. 사가 성공
             sagaUpdateService.updateCancelSagaStatus(saga, SagaStatus.COMPLETED);

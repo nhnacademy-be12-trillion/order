@@ -35,7 +35,7 @@ class DeliveryPolicyServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        deliveryPolicy = new DeliveryPolicy(1L, 3000, 50000);
+        deliveryPolicy = DeliveryPolicy.create(5000, 30000);
     }
 
     @DisplayName("배송 정책 조회 성공")
@@ -82,17 +82,27 @@ class DeliveryPolicyServiceImplTest {
         assertThat(deliveryPolicy.getDeliveryPolicyThreshold()).isEqualTo(request.deliveryPolicyThreshold());
     }
 
-    @DisplayName("배송 정책 수정 실패 - 설정 없음")
+    @DisplayName("배송 정책 생성 성공 - 설정 없음")
     @Test
-    void updateDeliveryPolicy_Fail_PolicyNotConfigured() {
+    void updateDeliveryPolicy_CreateNew_WhenNotConfigured() {
         // given
         UserInfo userInfo = new UserInfo(1L, "ADMIN");
         DeliveryPolicyUpdateRequest request = new DeliveryPolicyUpdateRequest(3500, 60000);
         given(deliveryPolicyRepository.findFirstByOrderByDeliveryPolicyIdAsc()).willReturn(Optional.empty());
 
-        // when & then
-        assertThatThrownBy(() -> deliveryPolicyService.updateDeliveryPolicy(userInfo, request))
-                .isInstanceOf(PolicyNotConfiguredException.class)
-                .hasMessage("배송 정책이 설정되지 않음");
+        // ArgumentCaptor 생성
+        org.mockito.ArgumentCaptor<DeliveryPolicy> captor = org.mockito.ArgumentCaptor.forClass(DeliveryPolicy.class);
+
+        // when
+        deliveryPolicyService.updateDeliveryPolicy(userInfo, request);
+
+        // then
+        // save 메서드에 전달된 DeliveryPolicy 객체를 캡처
+        verify(deliveryPolicyRepository).save(captor.capture());
+        DeliveryPolicy savedPolicy = captor.getValue();
+
+        // 캡처된 객체의 값을 검증
+        assertThat(savedPolicy.getDeliveryPolicyFee()).isEqualTo(request.deliveryPolicyFee());
+        assertThat(savedPolicy.getDeliveryPolicyThreshold()).isEqualTo(request.deliveryPolicyThreshold());
     }
 }

@@ -3,6 +3,7 @@ package com.nhnacademy.cart.controller;
 import com.nhnacademy.cart.common.annotation.GuestOnly;
 import com.nhnacademy.cart.dto.CartDto;
 import com.nhnacademy.cart.dto.CartHolder;
+import com.nhnacademy.cart.dto.CartSummaryDto;
 import com.nhnacademy.cart.service.CartService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +29,7 @@ public class CartController implements CartControllerDocs {
      * - Response: 담기 성공 후 UI 갱신을 위해 '현재 장바구니 총 개수'를 반환
      */
     @PostMapping
-    public ResponseEntity<Long> addCartItem(
+    public ResponseEntity<Void> addCartItem(
             CartHolder holder,
             @Valid @RequestBody CartCreateRequestDto request
     ) {
@@ -40,8 +41,7 @@ public class CartController implements CartControllerDocs {
 
         cartService.addCartItem(holder, serviceDto);
 
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(cartService.countCartItems(holder));
+        return ResponseEntity.noContent().build();
     }
 
     /**
@@ -96,13 +96,15 @@ public class CartController implements CartControllerDocs {
     }
 
     /**
-     * [장바구니 개수 조회]
-     * GET /api/carts/count
+     * [장바구니 요약 정보 조회]
+     * GET /api/carts/summary
      * - 헤더 아이콘 배지 표시용
      */
-    @GetMapping("/count")
-    public ResponseEntity<Long> countCartItems(CartHolder holder) {
-        return ResponseEntity.ok(cartService.countCartItems(holder));
+    @GetMapping("/summary")
+    public ResponseEntity<CartSummaryResponseDto> getCartSummary(CartHolder holder) {
+        CartSummaryDto cartSummaryDto = cartService.getCartSummary(holder);
+
+        return ResponseEntity.ok(CartSummaryResponseDto.of(cartSummaryDto));
     }
 
     /**

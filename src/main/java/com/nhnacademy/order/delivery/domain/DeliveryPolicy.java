@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor
-@AllArgsConstructor
 @Entity
 public class DeliveryPolicy {
     @Id
@@ -20,6 +19,18 @@ public class DeliveryPolicy {
 
     @Column(name = "deliverypolicy_threshold")
     private int deliveryPolicyThreshold;
+
+    private DeliveryPolicy(int deliveryPolicyFee, int  deliveryPolicyThreshold) {
+        this.deliveryPolicyFee = deliveryPolicyFee;
+        this.deliveryPolicyThreshold = deliveryPolicyThreshold;
+    }
+
+    public static DeliveryPolicy create(int deliveryPolicyFee, int deliveryPolicyThreshold) {
+        return new DeliveryPolicy(
+            deliveryPolicyFee,
+            deliveryPolicyThreshold
+        );
+    }
 
     public void update(int deliveryPolicyFee, int deliveryPolicyThreshold) {
         this.deliveryPolicyFee = deliveryPolicyFee;

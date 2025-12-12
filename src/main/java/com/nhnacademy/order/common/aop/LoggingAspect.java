@@ -11,7 +11,8 @@ import org.springframework.stereotype.Component;
 @Aspect
 @Component
 public class LoggingAspect {
-    @Pointcut("execution(public * com.nhnacademy.order..service.*.*(..))")
+    @Pointcut("execution(public * com.nhnacademy.order..service.*.*(..)) ||" +
+            "execution(public * com.nhnacademy.order..ordersaga..*.*(..))")
     public void serviceLayerExecution() {}
 
     @Around("serviceLayerExecution()")
@@ -22,8 +23,7 @@ public class LoggingAspect {
         long startTime = System.currentTimeMillis();
 
         try {
-            Object result = joinPoint.proceed();
-            return result;
+            return joinPoint.proceed();
         } finally {
             long endTime = System.currentTimeMillis();
             long executionTime = endTime - startTime;

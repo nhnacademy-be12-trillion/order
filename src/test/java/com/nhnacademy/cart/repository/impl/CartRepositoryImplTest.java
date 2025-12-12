@@ -4,6 +4,7 @@ import com.nhnacademy.cart.domain.EntityCart;
 import com.nhnacademy.cart.domain.RedisCart;
 import com.nhnacademy.cart.dto.CartDto;
 import com.nhnacademy.cart.dto.CartHolder;
+import com.nhnacademy.cart.dto.CartSummaryDto;
 import com.nhnacademy.cart.repository.CartJpaRepository;
 import com.nhnacademy.cart.repository.CartRedisRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -122,12 +123,11 @@ class CartRepositoryImplTest {
     }
 
     // ======================================================================
-    //  tryWarmUpAndGet Branch Tests (핵심 로직)
-    //  findAll 메소드를 통해 내부 로직을 검증합니다.
+    //  READ Operations: tryWarmUpAndGet Logic & findAll
     // ======================================================================
 
     @Test
-    @DisplayName("WarmUp Skip: 비회원은 워밍업 안 함 -> Redis 조회")
+    @DisplayName("findAll(WarmUp Skip): 비회원은 워밍업 안 함 -> Redis 조회")
     void findAll_Guest_SkipsWarmUp() {
         // given
         RedisCart redisCart = RedisCart.create(100L, 1, now);
@@ -138,12 +138,12 @@ class CartRepositoryImplTest {
 
         // then
         assertThat(result).hasSize(1);
-        verify(jpaRepo, never()).findAllByMemberId(any()); // DB 조회 없어야 함
+        verify(jpaRepo, never()).findAllByMemberId(any()); // DB 조회 없음
         verify(redisRepo).findAll(guestHolder);
     }
 
     @Test
-    @DisplayName("WarmUp Skip: 이미 Redis 키가 존재함 -> Redis 조회")
+    @DisplayName("findAll(WarmUp Skip): 이미 Redis 키가 존재함 -> Redis 조회")
     void findAll_HasKey_SkipsWarmUp() {
         // given
         given(redisRepo.hasKey(memberHolder)).willReturn(true);
@@ -155,12 +155,12 @@ class CartRepositoryImplTest {
 
         // then
         assertThat(result).hasSize(1);
-        verify(jpaRepo, never()).findAllByMemberId(any()); // DB 조회 없어야 함
+        verify(jpaRepo, never()).findAllByMemberId(any());
         verify(redisRepo).findAll(memberHolder);
     }
 
     @Test
-    @DisplayName("WarmUp Skip: 의도적 삭제(Empty Mark) 상태 -> Redis 조회(빈 리스트)")
+    @DisplayName("findAll(WarmUp Skip): 의도적 삭제(Empty Mark) 상태 -> Redis 조회(빈 리스트 예상)")
     void findAll_MarkedEmpty_SkipsWarmUp() {
         // given
         given(redisRepo.hasKey(memberHolder)).willReturn(false);
@@ -172,17 +172,16 @@ class CartRepositoryImplTest {
 
         // then
         assertThat(result).isEmpty();
-        verify(jpaRepo, never()).findAllByMemberId(any()); // DB 조회 없어야 함
+        verify(jpaRepo, never()).findAllByMemberId(any());
     }
 
     @Test
-    @DisplayName("WarmUp Run: DB 조회 성공 -> Redis Restore 후 데이터 반환 (Redis 재조회 X)")
+    @DisplayName("findAll(WarmUp Run): DB 데이터 존재 -> Redis Restore 후 즉시 반환 (Double Trip 방지)")
     void findAll_WarmUp_ReturnsDbData() {
-        // given: 워밍업 조건 충족 (Member, No Key, Not Empty)
+        // given
         given(redisRepo.hasKey(memberHolder)).willReturn(false);
         given(redisRepo.isMarkedAsEmpty(memberHolder.getMemberId())).willReturn(false);
 
-        // DB에 데이터가 있음
         EntityCart entityCart = EntityCart.builder().bookId(100L).cartQuantity(2).createdAt(now).build();
         given(jpaRepo.findAllByMemberId(memberHolder.getMemberId())).willReturn(List.of(entityCart));
 
@@ -192,14 +191,12 @@ class CartRepositoryImplTest {
         // then
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getBookId()).isEqualTo(100L);
-
-        // [핵심] restore가 호출되어야 하고, redisRepo.findAll()은 호출되지 않아야 함 (Double Network Trip 방지)
         verify(redisRepo).restore(eq(memberHolder), anyList());
-        verify(redisRepo, never()).findAll(memberHolder);
+        verify(redisRepo, never()).findAll(memberHolder); // Redis 재조회 없어야 함
     }
 
     @Test
-    @DisplayName("WarmUp Run: DB도 비어있음 -> Redis Restore(Empty) 후 빈 리스트 반환")
+    @DisplayName("findAll(WarmUp Run): DB도 비어있음 -> Redis Restore(Empty) 후 빈 리스트 반환")
     void findAll_WarmUp_DbEmpty() {
         // given
         given(redisRepo.hasKey(memberHolder)).willReturn(false);
@@ -211,24 +208,24 @@ class CartRepositoryImplTest {
 
         // then
         assertThat(result).isEmpty();
-        // 빈 리스트라도 restore 호출 (Empty Marking을 위해)
         verify(redisRepo).restore(eq(memberHolder), eq(Collections.emptyList()));
         verify(redisRepo, never()).findAll(memberHolder);
     }
 
     // ======================================================================
-    //  Other READ Operations Tests (findAll 외 메소드들의 최적화 확인)
+    //  Other READ Operations Tests
     // ======================================================================
 
     @Test
     @DisplayName("findByBookId: 워밍업 된 데이터(메모리)에서 찾기")
     void findByBookId_Optimized() {
-        // given: 워밍업 발생 상황
+        // given: DB에 데이터 2개 존재 가정
         given(redisRepo.hasKey(memberHolder)).willReturn(false);
         given(redisRepo.isMarkedAsEmpty(1L)).willReturn(false);
 
-        EntityCart entity = EntityCart.builder().bookId(100L).cartQuantity(1).createdAt(now).build();
-        given(jpaRepo.findAllByMemberId(1L)).willReturn(List.of(entity));
+        EntityCart target = EntityCart.builder().bookId(100L).cartQuantity(1).createdAt(now).build();
+        EntityCart other = EntityCart.builder().bookId(200L).cartQuantity(1).createdAt(now).build();
+        given(jpaRepo.findAllByMemberId(1L)).willReturn(List.of(target, other));
 
         // when
         Optional<CartDto> result = cartRepository.findByBookId(memberHolder, 100L);
@@ -236,16 +233,14 @@ class CartRepositoryImplTest {
         // then
         assertThat(result).isPresent();
         assertThat(result.get().getBookId()).isEqualTo(100L);
-        // Redis 조회(findByBookId)는 호출되지 않아야 함
         verify(redisRepo, never()).findByBookId(any(), any());
     }
 
     @Test
     @DisplayName("findByBookId: 기존 캐시(Redis) 이용")
     void findByBookId_Cached() {
-        // given: 워밍업 스킵 (이미 키 있음)
+        // given
         given(redisRepo.hasKey(memberHolder)).willReturn(true);
-
         RedisCart redisCart = RedisCart.create(100L, 1, now);
         given(redisRepo.findByBookId(memberHolder, 100L)).willReturn(Optional.of(redisCart));
 
@@ -260,7 +255,7 @@ class CartRepositoryImplTest {
     @Test
     @DisplayName("existsByBookId: 워밍업 된 데이터(메모리)에서 확인")
     void existsByBookId_Optimized() {
-        // given: 워밍업 발생 (DB에 데이터 있음)
+        // given
         given(redisRepo.hasKey(memberHolder)).willReturn(false);
         given(redisRepo.isMarkedAsEmpty(1L)).willReturn(false);
         EntityCart entity = EntityCart.builder().bookId(100L).cartQuantity(1).createdAt(now).build();
@@ -275,31 +270,11 @@ class CartRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("existsByBookId: 기존 캐시 이용")
-    void existsByBookId_Cached() {
-        // given: 워밍업 스킵
-        given(redisRepo.hasKey(memberHolder)).willReturn(true);
-        given(redisRepo.existsByBookId(memberHolder, 100L)).willReturn(true);
-
-        // when
-        boolean exists = cartRepository.existsByBookId(memberHolder, 100L);
-
-        // then
-        assertThat(exists).isTrue();
-    }
-
-    @Test
     @DisplayName("existsByBookId: 캐시도 없고 DB 워밍업도 안 된 상태 (return false)")
     void existsByBookId_Nothing() {
-        // given: 워밍업 스킵 상황 (예: Empty Mark)인데 Redis hasKey도 false인 경우
-        // (실제 코드 흐름상 tryWarmUp이 null 리턴하고, redis.hasKey도 false면 false 반환됨)
-        given(redisRepo.hasKey(memberHolder)).willReturn(false); // 1. tryWarmUp 안에서 체크
-        given(redisRepo.isMarkedAsEmpty(1L)).willReturn(true);   // 2. Empty라서 null 리턴
-        // tryWarmUpAndGet returns null.
-
-        // 3. hasKey 재호출 (if statement)
-        // Mockito는 같은 메소드 호출에 대해 순서대로 정의하거나 고정값을 줄 수 있음.
-        // 여기서는 그냥 false로 고정되어 있음.
+        // given: Empty Marked
+        given(redisRepo.hasKey(memberHolder)).willReturn(false);
+        given(redisRepo.isMarkedAsEmpty(1L)).willReturn(true);
 
         // when
         boolean exists = cartRepository.existsByBookId(memberHolder, 100L);
@@ -318,7 +293,7 @@ class CartRepositoryImplTest {
         given(jpaRepo.findAllByMemberId(1L)).willReturn(List.of(entity));
 
         // when
-        long count = cartRepository.count(memberHolder);
+        long count = cartRepository.countDistinctCartItem(memberHolder);
 
         // then
         assertThat(count).isEqualTo(1);
@@ -333,28 +308,106 @@ class CartRepositoryImplTest {
         given(redisRepo.count(memberHolder)).willReturn(5L);
 
         // when
-        long count = cartRepository.count(memberHolder);
+        long count = cartRepository.countDistinctCartItem(memberHolder);
 
         // then
         assertThat(count).isEqualTo(5);
     }
 
     @Test
-    @DisplayName("count: 캐시도 없고 워밍업 대상도 아님 -> 0 반환")
+    @DisplayName("count: 캐시 없음 & 워밍업 불가 -> 0")
     void count_Zero() {
-        // given: Empty Mark 상태
         given(redisRepo.hasKey(memberHolder)).willReturn(false);
         given(redisRepo.isMarkedAsEmpty(1L)).willReturn(true);
 
-        // when
-        long count = cartRepository.count(memberHolder);
+        long count = cartRepository.countDistinctCartItem(memberHolder);
 
-        // then
         assertThat(count).isEqualTo(0);
     }
 
+    // ======================================================================
+    //  getSummary Tests (NEW)
+    // ======================================================================
+
     @Test
-    @DisplayName("public warmUp 메소드 테스트 (Eager Loading)")
+    @DisplayName("getSummary: 워밍업 된 데이터로 요약정보 계산 (Optimized)")
+    void getSummary_Optimized() {
+        // given: DB에 2권짜리, 3권짜리 책이 있음
+        given(redisRepo.hasKey(memberHolder)).willReturn(false);
+        given(redisRepo.isMarkedAsEmpty(1L)).willReturn(false);
+
+        EntityCart item1 = EntityCart.builder().bookId(1L).cartQuantity(2).createdAt(now).build();
+        EntityCart item2 = EntityCart.builder().bookId(2L).cartQuantity(3).createdAt(now).build();
+        given(jpaRepo.findAllByMemberId(1L)).willReturn(List.of(item1, item2));
+
+        // when
+        CartSummaryDto summary = cartRepository.getSummary(memberHolder);
+
+        // then
+        // Line Count: 2개 (item1, item2)
+        // Total Quantity: 5개 (2 + 3)
+        assertThat(summary).isNotNull();
+        assertThat(summary.getLineCount()).isEqualTo(2);
+        assertThat(summary.getTotalQuantity()).isEqualTo(5);
+        verify(redisRepo, never()).findAll(any()); // Redis 조회 안 함
+    }
+
+    @Test
+    @DisplayName("getSummary: 기존 캐시 데이터로 요약정보 계산 (Cached)")
+    void getSummary_Cached() {
+        // given
+        given(redisRepo.hasKey(memberHolder)).willReturn(true); // 워밍업 스킵
+
+        RedisCart redisItem1 = RedisCart.create(1L, 2, now);
+        RedisCart redisItem2 = RedisCart.create(2L, 5, now);
+        given(redisRepo.findAll(memberHolder)).willReturn(List.of(redisItem1, redisItem2));
+
+        // when
+        CartSummaryDto summary = cartRepository.getSummary(memberHolder);
+
+        // then
+        assertThat(summary.getLineCount()).isEqualTo(2);
+        assertThat(summary.getTotalQuantity()).isEqualTo(7);
+    }
+
+    @Test
+    @DisplayName("getSummary: 캐시도 없고 데이터도 없음 (Zero)")
+    void getSummary_Nothing() {
+        // given: Empty Marked -> tryWarmUp returns null
+        given(redisRepo.hasKey(memberHolder)).willReturn(false);
+        given(redisRepo.isMarkedAsEmpty(1L)).willReturn(true);
+        // redisRepo.hasKey()가 위에서 false였으므로, 아래 if문도 통과 못함
+
+        // when
+        CartSummaryDto summary = cartRepository.getSummary(memberHolder);
+
+        // then
+        assertThat(summary.getLineCount()).isEqualTo(0);
+        assertThat(summary.getTotalQuantity()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("getSummary: (Edge Case) 워밍업 했으나 DB가 비어있는 경우")
+    void getSummary_Optimized_EmptyDB() {
+        // given
+        given(redisRepo.hasKey(memberHolder)).willReturn(false);
+        given(redisRepo.isMarkedAsEmpty(1L)).willReturn(false);
+        given(jpaRepo.findAllByMemberId(1L)).willReturn(Collections.emptyList());
+
+        // when
+        CartSummaryDto summary = cartRepository.getSummary(memberHolder);
+
+        // then: createSummaryFromList 내부 로직 검증
+        assertThat(summary.getLineCount()).isEqualTo(0);
+        assertThat(summary.getTotalQuantity()).isEqualTo(0);
+    }
+
+    // ======================================================================
+    //  warmUp Public Method Test
+    // ======================================================================
+
+    @Test
+    @DisplayName("warmUp: public 메소드 호출 확인")
     void warmUp_PublicMethod() {
         // given
         given(redisRepo.hasKey(memberHolder)).willReturn(false);

@@ -35,7 +35,7 @@ public interface CartControllerDocs {
             @ApiResponse(responseCode = "400", description = "잘못된 요청 (유효하지 않은 수량 등)", content = @Content),
             @ApiResponse(responseCode = "404", description = "존재하지 않는 도서 ID", content = @Content)
     })
-    ResponseEntity<Long> addCartItem(
+    ResponseEntity<Void> addCartItem(
             @Parameter(hidden = true) CartHolder holder, // 내부 주입용이므로 숨김
             @RequestBody CartCreateRequestDto request
     );
@@ -80,12 +80,12 @@ public interface CartControllerDocs {
             @Parameter(hidden = true) CartHolder holder
     );
 
-    @Operation(summary = "장바구니 개수 조회", description = "헤더 아이콘 배지 표시용 총 개수를 반환합니다.")
+    @Operation(summary = "장바구니 요약정보 조회", description = "헤더 아이콘 배지 표시... 등을 위한 요약정보를 반환합니다.")
     @Parameters({
             @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, example = "1"),
             @Parameter(name = "SESSION", in = ParameterIn.COOKIE)
     })
-    ResponseEntity<Long> countCartItems(
+    ResponseEntity<CartSummaryResponseDto> getCartSummary(
             @Parameter(hidden = true) CartHolder holder
     );
 

@@ -48,6 +48,23 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             o.receiverInfo
         )
         FROM Order o
+    """)
+    Page<OrderBaseResponse> findAllBaseOrder(Pageable pageable);
+
+    @Query("""
+        SELECT new com.nhnacademy.order.order.dto.OrderBaseResponse(
+            o.orderId,
+            o.memberId,
+            o.orderNumber,
+            o.orderDetails.orderDate,
+            o.orderStatus,
+            o.orderDetails.originPrice,
+            o.orderDetails.totalPrice,
+            o.orderDetails.deliveryFee,
+            o.ordererInfo,
+            o.receiverInfo
+        )
+        FROM Order o
         WHERE o.orderId = :orderId
     """)
     Optional<OrderBaseResponse> findBaseOrderById(Long orderId);

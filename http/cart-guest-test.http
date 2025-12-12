@@ -40,8 +40,8 @@ Cookie: SESSION={{SESSION}}
   "cartQuantity": 5
 }
 
-### 5. 헤더 배지 개수 조회 (예상: 2)
-GET {{host}}/api/carts/count
+### 5. 장바구니 요약 정보 조회
+GET {{host}}/api/carts/summary
 Cookie: SESSION={{SESSION}}
 
 ### 6. 상품 삭제 (Book: 101 삭제)

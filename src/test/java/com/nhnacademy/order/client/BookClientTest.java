@@ -55,11 +55,11 @@ class BookClientTest {
         // given
         List<Long> bookIds = List.of(1L, 2L);
         List<BookResponse> expectedResponse = List.of(
-                new BookResponse(1L, "Book 1", 10000),
-                new BookResponse(2L, "Book 2", 20000)
+                new BookResponse(1L, "Book 1", 10000, true, "testImage1"),
+                new BookResponse(2L, "Book 2", 20000, true , "testImage2")
         );
 
-        wireMockServer.stubFor(get(urlPathEqualTo("/api/book/1"))
+        wireMockServer.stubFor(get(urlPathEqualTo("/api/order-books"))
                 .withQueryParam("bookIds", equalTo("1"))
                 .withQueryParam("bookIds", equalTo("2"))
                 .willReturn(aResponse()
@@ -72,7 +72,7 @@ class BookClientTest {
 
         // then
         assertThat(actualResponse).isEqualTo(expectedResponse);
-        wireMockServer.verify(getRequestedFor(urlPathEqualTo("/api/book/1"))
+        wireMockServer.verify(getRequestedFor(urlPathEqualTo("/api/order-books"))
                 .withQueryParam("bookIds", equalTo("1"))
                 .withQueryParam("bookIds", equalTo("2")));
     }
@@ -83,14 +83,14 @@ class BookClientTest {
         // given
         BookStocksRequest request = new BookStocksRequest(Map.of(1L, 10, 2L, 5));
 
-        wireMockServer.stubFor(patch(urlPathEqualTo("/api/book/2"))
+        wireMockServer.stubFor(patch(urlPathEqualTo("/api/order-books/increase-stocks"))
                 .withRequestBody(equalToJson(objectMapper.writeValueAsString(request)))
                 .willReturn(aResponse().withStatus(HttpStatus.OK.value())));
 
         // when & then
         assertDoesNotThrow(() -> bookClient.increaseStocks(request));
 
-        wireMockServer.verify(patchRequestedFor(urlPathEqualTo("/api/book/2"))
+        wireMockServer.verify(patchRequestedFor(urlPathEqualTo("/api/order-books/increase-stocks"))
                 .withRequestBody(equalToJson(objectMapper.writeValueAsString(request))));
     }
 
@@ -100,14 +100,14 @@ class BookClientTest {
         // given
         BookStocksRequest request = new BookStocksRequest(Map.of(1L, 10, 2L, 5));
 
-        wireMockServer.stubFor(patch(urlPathEqualTo("/api/book/3"))
+        wireMockServer.stubFor(patch(urlPathEqualTo("/api/order-books/decrease-stocks"))
                 .withRequestBody(equalToJson(objectMapper.writeValueAsString(request)))
                 .willReturn(aResponse().withStatus(HttpStatus.OK.value())));
 
         // when & then
         assertDoesNotThrow(() -> bookClient.decreaseStocks(request));
 
-        wireMockServer.verify(patchRequestedFor(urlPathEqualTo("/api/book/3"))
+        wireMockServer.verify(patchRequestedFor(urlPathEqualTo("/api/order-books/decrease-stocks"))
                 .withRequestBody(equalToJson(objectMapper.writeValueAsString(request))));
     }
 }

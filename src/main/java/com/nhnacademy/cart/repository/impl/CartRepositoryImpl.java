@@ -4,6 +4,7 @@ import com.nhnacademy.cart.domain.EntityCart;
 import com.nhnacademy.cart.domain.RedisCart;
 import com.nhnacademy.cart.dto.CartDto;
 import com.nhnacademy.cart.dto.CartHolder;
+import com.nhnacademy.cart.dto.CartSummaryDto;
 import com.nhnacademy.cart.repository.CartJpaRepository;
 import com.nhnacademy.cart.repository.CartRedisRepository;
 import com.nhnacademy.cart.repository.CartRepository;
@@ -138,7 +139,7 @@ public class CartRepositoryImpl implements CartRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public long count(CartHolder holder) {
+    public long countDistinctCartItem(CartHolder holder) {
         // 워밍 시도 & 데이터 획득
         List<RedisCart> warmedList = tryWarmUpAndGet(holder);
 
@@ -155,9 +156,44 @@ public class CartRepositoryImpl implements CartRepository {
         return 0;
     }
 
+    @Override
+    public CartSummaryDto getSummary(CartHolder holder) {
+        // 워밍 시도 & 데이터 획득
+        List<RedisCart> warmedList = tryWarmUpAndGet(holder);
+
+        // 방금 워밍했다면, 요약 정보를 바로 반환
+        if (warmedList != null) {
+            return createSummaryFromList(warmedList);
+        }
+
+        // 기존 캐시가 있었다면 Redis에서 Count
+        if (redisRepo.hasKey(holder)) {
+            List<RedisCart> redisCarts = redisRepo.findAll(holder);
+            return createSummaryFromList(redisCarts);
+        }
+
+        return new CartSummaryDto(0L,0L);
+    }
+
+// ======================================================================
+    //  Internal Helper
     // ======================================================================
-    //  Internal Helper: Smart Warm-Up
-    // ======================================================================
+
+    /**
+     * 리스트를 기반으로 장바구니 요약정보를 계산하여 DTO를 반환합니다.
+     */
+    private CartSummaryDto createSummaryFromList(List<RedisCart> carts) {
+        if (carts == null || carts.isEmpty()) {
+            return new CartSummaryDto(0L, 0L);
+        }
+
+        return new CartSummaryDto((long) carts.size(),
+                carts.stream()
+                        .mapToLong(RedisCart::getCartQuantity)
+                        .sum()
+        );
+    }
+
 
     /**
      * 캐시 워밍(Cache Warming)을 시도하고, 결과물을 반환

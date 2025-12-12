@@ -99,7 +99,7 @@ class CartServiceImplTest {
     void addCartItem_NewItem_CapacityOk() {
         // given
         given(cartRepository.findByBookId(memberHolder, 100L)).willReturn(Optional.empty());
-        given(cartRepository.count(memberHolder)).willReturn(10L); // 현재 10개, 최대 100개
+        given(cartRepository.countDistinctCartItem(memberHolder)).willReturn(10L); // 현재 10개, 최대 100개
 
         // when
         cartService.addCartItem(memberHolder, cartDto);
@@ -113,7 +113,7 @@ class CartServiceImplTest {
     void addCartItem_CapacityExceeded() {
         // given
         given(cartRepository.findByBookId(memberHolder, 100L)).willReturn(Optional.empty());
-        given(cartRepository.count(memberHolder)).willReturn(100L); // 이미 꽉 참
+        given(cartRepository.countDistinctCartItem(memberHolder)).willReturn(100L); // 이미 꽉 참
         given(cartProperties.getMaxItems()).willReturn(100);
 
         // when & then
@@ -205,10 +205,10 @@ class CartServiceImplTest {
     }
 
     @Test
-    @DisplayName("countCartItems: 개수 조회 호출 확인")
-    void countCartItems() {
-        cartService.countCartItems(memberHolder);
-        verify(cartRepository).count(memberHolder);
+    @DisplayName("getCartSummary: 요약정보 조회 호출 확인")
+    void getCartSummary() {
+        cartService.getCartSummary(memberHolder);
+        verify(cartRepository).getSummary(memberHolder);
     }
 
     // ======================================================================

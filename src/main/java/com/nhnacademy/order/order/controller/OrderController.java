@@ -119,7 +119,7 @@ public interface OrderController {
             @ApiResponse(responseCode = "409", description = "이미 처리되어 취소할 수 없는 상태의 주문입니다.")
     })
     @DeleteMapping("/orders/{orderId}")
-    ResponseEntity<Void> cancelOrder(
+    ResponseEntity<OrderResponse> cancelOrder(
             @Parameter(description = "취소할 주문의 ID", required = true) @PathVariable Long orderId,
             UserInfo userInfo);
 
@@ -131,7 +131,7 @@ public interface OrderController {
             @ApiResponse(responseCode = "409", description = "이미 처리되어 취소할 수 없는 상태의 주문입니다.")
     })
     @DeleteMapping("/orders/non-members/{orderId}")
-    ResponseEntity<Void> cancelOrderForNonMember(
+    ResponseEntity<OrderResponse> cancelOrderForNonMember(
             @Parameter(description = "취소할 주문의 ID", required = true) @PathVariable Long orderId,
             @Parameter(description = "주문 취소를 위한 비밀번호", required = true) @RequestBody @Valid NonMemberOrderCancelRequest request);
 

@@ -4,9 +4,11 @@ import com.nhnacademy.order.client.dto.CouponApplyRequest;
 import com.nhnacademy.order.client.dto.CouponGetDiscountAmountRequest;
 import com.nhnacademy.order.common.config.FeignClientConfig;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
+@Profile("!local")
 @FeignClient(name = "coupon-service", configuration = FeignClientConfig.class)
 public interface CouponClient {
     @PostMapping("/api/coupon/1")

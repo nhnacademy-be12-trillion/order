@@ -8,8 +8,6 @@ import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
-
 @Service
 @RequiredArgsConstructor
 public class MemberService {
@@ -29,11 +27,21 @@ public class MemberService {
         memberClient.increasePoint(new PointUsageRequest(memberId, point));
     }
 
+    @CircuitBreaker(name = "member-service", fallbackMethod = "fallbackRollbackPoint")
+    @Retry(name = "member-service")
+    public void rollbackPoint(Long memberId, int point) {
+        memberClient.rollbackPoint(new PointUsageRequest(memberId, point));
+    }
+
     public void fallbackDecreasePoint(Long memberId, int point, Throwable throwable) {
         fallbackHandler.handle(SERVICE_NAME, "포인트 감소", throwable);
     }
 
     public void fallbackIncreasePoint(Long memberId, int point, Throwable throwable) {
         fallbackHandler.handle(SERVICE_NAME, "포인트 증가", throwable);
+    }
+
+    public void fallbackRollbackPoint(Long memberId, int point, Throwable throwable) {
+        fallbackHandler.handle(SERVICE_NAME, "포인트 복구", throwable);
     }
 }

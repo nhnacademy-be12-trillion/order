@@ -26,7 +26,7 @@ class DeliveryPolicyRepositoryTest {
     @DisplayName("배송비 정책 조회 - 성공 (정책은 반드시 하나만 존재)")
     void findFirstByOrderByDeliveryPolicyIdAsc_Success_WithSinglePolicy() {
         // given: 단 하나의 정책만 저장
-        DeliveryPolicy policy = new DeliveryPolicy(null, 5000, 30000);
+        DeliveryPolicy policy = DeliveryPolicy.create(5000, 30000);
         entityManager.persistAndFlush(policy);
         entityManager.clear();
 
