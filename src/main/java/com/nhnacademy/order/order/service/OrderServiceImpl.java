@@ -10,6 +10,7 @@ import com.nhnacademy.order.order.dto.NonMemberOrderBaseResponse;
 import com.nhnacademy.order.order.dto.OrderBaseResponse;
 import com.nhnacademy.order.order.dto.OrderCreateRequest;
 import com.nhnacademy.order.order.dto.OrderResponse;
+import com.nhnacademy.order.order.exception.OrderCreateFailureException;
 import com.nhnacademy.order.order.exception.OrderNotFoundException;
 import com.nhnacademy.order.order.exception.OrderPasswordMismatchException;
 import com.nhnacademy.order.order.exception.OrderStatusTransitionException;
@@ -62,7 +63,7 @@ public class OrderServiceImpl implements OrderService {
 
     // 비회원 주문 비밀번호 확인
     private void nonMemberPasswordCheck(String nonMemberPassword, String orderPassword) {
-        if (nonMemberPassword != null && !passwordEncoder.matches(nonMemberPassword, orderPassword)) {
+        if (nonMemberPassword == null || !passwordEncoder.matches(nonMemberPassword, orderPassword)) {
             throw new OrderPasswordMismatchException("비회원 주문번호 불일치");
         }
     }
@@ -139,7 +140,7 @@ public class OrderServiceImpl implements OrderService {
 
             // 3. 최종 처리 실행 (OrderStatus: CREATING -> PENDING)
             orderFinalizerService.finalizeOrderCreation(order, saga);
-        } catch (Exception e) { // 아마 무조건 OrderCreateFailureException
+        } catch (OrderCreateFailureException e) {
             // 주문 생성 중 문제 발생 시 무조건 보상 트랜잭션 시작
             // 기본적으로 외부 API와 2번 통신 재시도 -> 실패 시 OrderCreateFailureException이 던져짐
             log.error("주문 ID: {} - 생성 실패: {}", order.getOrderId(), e.getMessage(), e);

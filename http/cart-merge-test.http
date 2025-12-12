@@ -1,0 +1,61 @@
+### 환경 변수
+@host = http://127.0.0.1:10407
+@memberId = 1001
+@SESSION = 550e8400-e29b-41d4-a716-446655440000
+
+# ==========================================
+# [통합] 로그인 병합(Merge) 테스트
+# ==========================================
+
+# ------------------------------------------
+# Step 1. 사전 준비 (비회원 장바구니 채우기)
+# ------------------------------------------
+
+### 1-1. 비회원 장바구니 초기화 (깨끗한 상태에서 시작)
+DELETE {{host}}/api/carts
+Cookie: SESSION={{SESSION}}
+
+### 1-2. 비회원으로 상품 담기 (Book: 301, Qty: 10)
+POST {{host}}/api/carts
+Content-Type: application/json
+Cookie: SESSION={{SESSION}}
+
+{
+  "bookId": 301,
+  "cartQuantity": 10
+}
+
+### 1-3. 비회원으로 상품 하나 더 담기 (Book: 302, Qty: 5)
+POST {{host}}/api/carts
+Content-Type: application/json
+Cookie: SESSION={{SESSION}}
+
+{
+  "bookId": 302,
+  "cartQuantity": 5
+}
+
+
+# ------------------------------------------
+# Step 2. 로그인 및 병합 요청
+# ------------------------------------------
+
+### 2-1. 장바구니 병합 API 호출
+# 상황: 사용자가 로그인에 성공하여 프론트엔드가 병합을 요청함
+# 헤더(회원)와 쿠키(비회원)를 동시에 전송
+POST {{host}}/api/carts/merge
+X-User-Id: {{memberId}}
+Cookie: SESSION={{SESSION}}
+
+
+# ------------------------------------------
+# Step 3. 결과 검증
+# ------------------------------------------
+
+### 3-1. [회원] 장바구니 확인 (성공 시: 301번, 302번 상품이 들어와 있어야 함)
+GET {{host}}/api/carts
+X-User-Id: {{memberId}}
+
+### 3-2. [비회원] 장바구니 확인 (성공 시: 비어 있어야 함 [])
+GET {{host}}/api/carts
+Cookie: SESSION={{SESSION}}

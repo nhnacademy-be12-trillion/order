@@ -5,6 +5,7 @@ import com.nhnacademy.order.common.dto.UserInfo;
 import com.nhnacademy.order.order.domain.*;
 import com.nhnacademy.order.order.dto.OrderCreateRequest;
 import com.nhnacademy.order.order.dto.OrderResponse;
+import com.nhnacademy.order.order.exception.OrderCreateFailureException;
 import com.nhnacademy.order.order.repository.OrderRepository;
 import com.nhnacademy.order.orderitem.dto.OrderItemCreateRequest;
 import com.nhnacademy.order.ordersaga.creation.domain.OrderCreateSaga;
@@ -117,7 +118,7 @@ class OrderServiceCreateTest {
         when(orderCreateService.createInitialOrder(any(), any(), any(), any(), any(), any())).thenReturn(initialOrder);
 
         // 사가 프로세스가 실패하도록 설정
-        RuntimeException sagaException = new RuntimeException("외부 서비스 호출 실패");
+        RuntimeException sagaException = new OrderCreateFailureException("외부 서비스 호출 실패");
         doThrow(sagaException).when(orderCreateOrchestrator).processCreateOrder(any(OrderCreateSaga.class), any(Order.class));
 
         // 보상 로직 Mock

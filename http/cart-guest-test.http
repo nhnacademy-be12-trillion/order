@@ -1,0 +1,53 @@
+### 환경 변수
+@host = http://127.0.0.1:10407
+@SESSION = 550e8400-e29b-41d4-a716-446655440000
+
+# ==========================================
+# [비회원] 장바구니 테스트
+# - Redis 전용 로직 검증
+# ==========================================
+
+### 1. 상품 담기 (Book: 101, Qty: 2)
+POST {{host}}/api/carts
+Content-Type: application/json
+Cookie: SESSION={{SESSION}}
+
+{
+  "bookId": 105,
+  "cartQuantity": 2
+}
+
+### 2. 다른 상품 담기 (Book: 102, Qty: 1)
+POST {{host}}/api/carts
+Content-Type: application/json
+Cookie: SESSION={{SESSION}}
+
+{
+  "bookId": 103,
+  "cartQuantity": 1
+}
+
+### 3. 목록 조회 (예상: 101, 102 두 개 존재)
+GET {{host}}/api/carts
+Cookie: SESSION={{SESSION}}
+
+### 4. 수량 변경 (Book: 101 -> 5개)
+PUT {{host}}/api/carts/109
+Content-Type: application/json
+Cookie: SESSION={{SESSION}}
+
+{
+  "cartQuantity": 5
+}
+
+### 5. 헤더 배지 개수 조회 (예상: 2)
+GET {{host}}/api/carts/count
+Cookie: SESSION={{SESSION}}
+
+### 6. 상품 삭제 (Book: 101 삭제)
+DELETE {{host}}/api/carts/101
+Cookie: SESSION={{SESSION}}
+
+### 7. 전체 비우기 (초기화)
+DELETE {{host}}/api/carts
+Cookie: SESSION={{SESSION}}
