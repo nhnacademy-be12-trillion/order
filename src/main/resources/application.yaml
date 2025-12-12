@@ -9,36 +9,8 @@ spring:
   application:
     name: order-service
   config:
-    import:
-      configserver: ${CONFIG_SERVER_URI:http//localhost:10418}
+    import: configserver:${CONFIG_SERVER_URI:http://localhost:10418}
   cloud:
     config:
       username: be12-team1
       password: nhnacademy123!
-  profiles:
-    active: dev
-
-
-server:
-  servlet:
-    encoding:
-      charset: UTF-8
-      force: true
-
-# 장바구니 설정
-cart:
-  # 장바구니 최대 종류 제한
-  max-items: 100
-  # TTL 설정
-  guest-ttl-days: 3
-  member-ttl-minutes: 60
-  # 장바구니 만료일
-  retention-days: 90
-  # 스케쥴러 설정
-  scheduler:
-    # cleanup 스케쥴러 동작 시간
-    cleanup-cron: "0 0 3 * * *"
-    #
-    batch-size: 300
-    # 마이그레이션 스케쥴러 딜레이 (ex. 180000 == 3분)
-    migration-delay: 180000
