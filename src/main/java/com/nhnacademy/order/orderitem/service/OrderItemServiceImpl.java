@@ -53,9 +53,6 @@ public class OrderItemServiceImpl implements OrderItemService {
                 // 포인트 적립
                 orderItemUpdateService.accumulatePoint(order, orderItem);
             }
-
-            // CONFIRMED로 상태 변경
-            orderItemUpdateService.updateOrderItemStatus(order, orderItem, OrderItemStatusUpdateStrategy.CONFIRMED);
         } catch (Exception e) {
             log.error("주문 상품 구매 확정 실패: {}", e.getMessage(), e);
             // 구매 확정 실패는 사용자에게 알려야 함
@@ -101,7 +98,11 @@ public class OrderItemServiceImpl implements OrderItemService {
 
         switch (strategy) {
             case RETURNED -> handleReturned(userInfo, order, orderItem);
-            case CONFIRMED -> handleConfirmed(userInfo, order, orderItem);
+            case CONFIRMED -> {
+                orderItemUpdateService.updateOrderItemStatus(order, orderItem, OrderItemStatusUpdateStrategy.CONFIRMED);
+
+                handleConfirmed(userInfo, order, orderItem);
+            }
             default -> orderItemUpdateService.updateOrderItemStatus(order, orderItem, strategy);
         }
     }
